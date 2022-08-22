@@ -1,1 +1,182 @@
+Layouts and rendering
+Overviews : How these pieces fits together
+
+This guide focuses on the interaction between Controllersz and views in the model -view - controller triabngle As you know the controller is esponsible for orchestrating the whole process of handling a request in rails through it normally hands off any heavy code to the model bu then, where it's time to send a eresponse back to the user, the Controller hands things off to the View. It's that handoff that is subject of this guide.
+
+In broad strokes, this involves deciding what should be sent as the response and calling an appropriate method to create that response. If the response is a full- blown  view, rails also does some extra work to wrap  the viewa in  layout and possiblyto pull in partial views. you'll see all of those paths later in this guide 
+
+Creating reponses
+From the controller's point of view, there are three wayss to create an HTTP response:
+
+call render to create a full response to send back to the browser
+call redirect_to to send an HTTP redirect status code to the browser 
+call head to create a response consisting solely of HTTP headers to send back to the browser
+
+Rendering by default : Convention Over Configuration in Action
+
+You've head that rails promotes  "convention ovcer configuration" Default rendering is an excellent example of this By default, controllers in rails automatically render views with names that correspond to valid routes. For example, if you have this code in your BooksController class:
+
+class BooksController < ApplicationController 
+end
+And the following in your routes file:
+resources: books
+
+And you have a view file app/views/books/inde.html.erb when you navigate to /books and you will see "BooksController:
+
+class BooksController < ApplicationController 
+def ndex 
+@books = Books.all
+end
+end
+
+note that we don't have explicit render at the end of the index action in accordance with "convention over configuration" principle. The rule is that if you do not explicitly render something at the end of a controller action, Rails will automatically look for the action_name.html.erb template in the controller's view path and render it. So in this case, rails will render the app/views/books/index.html.erb file
+
+If we want to display the properties of all the books in our view, we can do with an ERB template like this : 
+<h1> Listing Books</h1>
+
+<table> 
+<thead>
+<tr>
+<th> Title</th>
+<th> Content</th>
+<th colspan = "3"> </th>
+</tr>
+</thead>
+
+<tbody>
+ <td><% @books.each.title %> </td>
+ <td><%= book.content %></td>
+ <td><%=link_to "Show", book %></td>
+ <td><%= link_to "Edit", edit_book_path(book) %>
+ </td>
+ 
+ <td><%= link_to "Destroy", book, data: {
+ turbo_method; :delete, turbo_confirm: "Are you sure?"} %></td>
+ </tr>
+ <% end %>
+ </tbody>
+ </table>
+ <br
+ <%= link_to "New book", new_book_path %>
+ 
+ The actual rendering is done by nested classes of the module ActionView::Temple::Handlers. This guide does not dig into that process, but it's important to know that the file extension on your view controllers the choice of template handler.
+ 
+ Using render
+ In most cases the ActionController::Base#Base#render method does the heavy lifting of rendering your application's content for use by a browser. There are a variety of ways to customize the behaviour of render You can render the default viewfor a Rails  template, or a specific template, or a file, or inline code, or nothing at all. You can render text, JSON, or XML. you can specify the content type or HTTP status of the rendered response as well.
+ 
+ If you want to see the exact result of a call to render without needing to inspect it in a browser, you can call render_to_string. This method takes exactly the same options as render, but it returns a string instead of sending a response back to the brwoser.
+ 
+ Rendering an action's view
+ If you want to render the view that corresponding to adifferent template within the sme controller.
+ 
+ If you prefer, you can use a symbol instead of a string to specify the action to render:
+ 
+ def update 
+ @book = Book.find(params[:id})
+ if @book.update(book_params)
+ redirect_to(@book)
+ else
+ render :edit, status: :unprocessable_entity
+ end
+ end
+ 
+ Rendering an Action's Template from Another Controller
+ What if you want to render a template from an entirely different controller from the one that contains the action code? You can alo do that with render which accepts the full path(relative to app/views) of the template to render,For example, i you're running code in an AdminProductsController that lives in app/controllers/admin. You can render the results of an action to a template in app/views/products this way: 
+ render "products/shows"
+ Rails knows that this this views belongs to a different controller because  of the embedded alash character in the string. if you want to be expliccit, you can use the : template option(which was required on Rails 2.2 and Earlier)
+ 
+ render template : "products/show"
+ 
+ Wrapping it up
+ The above two ways of rendering (renderring the template of another action in the same controller, and rendering the template of another actoin ina different controller) are actually variants of the same operation.
+ 
+ In fact, in the BooksController class, inside of the update action where we want to render the edit template if the book does not update sucessfully, all of the following render calls would all render the edit.html.erb template in the views/books directory:
+ 
+ render: edit
+ render action::edit
+ render "edit"
+ render action: "edit"
+ render"books/edit"
+ render template: "books/edit"
+ 
+ Which one you use is really a matter of style and convention, but the rule of thumb is to use the simplest one that makes sence for the code you are writting.
+ 
+ Using render with :inline 
+ The render method can do without a view comletely, if you're willing ti use the inline option to supply ERB as part of the method call. This is perfectly valid.
+ render inline : <% products.each do |p| %><p><%= p.name %> </p><% end %>"
+ There is seldom any good reason to use this option. Mixing ERB into your controller defeats the MVC orientations of rails and will make it harder for other developers to follow the logic of your project. Use a seperate erb view instead.
+ By default inline rendering uses ERB you can force it to use Builder instead with the type option:
+ render inline : "xml.p { 'Horrid coding practices!' }", type: :builder
+ 
+ Rendering Text 
+ You can spend plain text - with no markup at all -back to the browser by using the :plain option to render:
+ 
+ render plain : "OK"
+ Rendering pure text is most usful when you're responding to ajax or web services requests that are expecting something other than proper HTML. 
+ By default if you use the plain option the next text is rendered without using the current layout. If you wawnt Rails to put the text into the current layout, you need to add the layout: tue option and use the .text.erb extension for the layout fot the layout file.
+ 
+ Rendering HTML 
+ You can send an HTML string back to the browser by using the :html option to render:
+ render html:helpers.tag.string('Not Found')
+ This is useful when you're rendering a small snippet of HTML code. However you might want to consider moving it to a template file if the markup is complex.
+ When using html: option HTML entities, wll be escaped if the string is not composed with html_safe-aware APIs.
+ Rendering JSON 
+ 
+ Json is a javascript data format y many Ajax libraries. Rails has built-in support for converting objects to JSON and rendering that JSON backto the browser:
+ render json: @product
+ You do't neeed to call to_JSON on the object that you want to render. If you use the :JSON option, render will automatically call to_JSON for you 
+ 
+ Rendering XML
+ Rails also has built-in support for converting objects to XML and rendering that XML back to the caller :
+ 
+ render xml: @product
+ You don't need to call to_xml on the object that you want to render. if you use the :XML option, render will automatically call to_xml for you 
+ 
+ Rendering vanilla Javascript
+ Rails can render vanilla Javascript:
+ 
+ render js: "alert(Hello Rails');"
+ This will send the supplied string to the browser with a MME type of text/javascript.
+ 
+ Renderng raw body
+ You can sesnd a raw content back to the browser, without setting any content type, by using :body option to render:
+ 
+ render body: "raw"
+ This option shuld be used only if you don't care about the content type of the response Using :plain or :html might be more appropriate most of the time.
+ Unless ovverriden your response returned from this render option will be text/plain, as that id the default content type of action Dispatch response.
+ 
+ Rendering raw file 
+ Rails can render a raw file from an absolute path. This is useful for conditionally rendering static like error pages. 
+ render file: "#{Rails.root}/public/404.html", layout: false
+ This render the raw file (it doesn't support ERB or other handlers). by default it is rendered within the current layout.
+ 
+ Using the :file option in combination with users input can lead to security problems since an attacker could use this action to access security sensitive files in your system.
+ send_file is often a faster and better optionif a layout isn't required
+ 
+ Rendering objects
+ Rails can render objects responding to :render_in.
+ 
+ render MyRenderable.new
+ 
+ This calls render_in on the provided object with the current view context.
+ Options
+ for render
+ Calls to the render method generally accept six options:
+ 
+ content_type 
+ :layout
+ :location
+ :status
+ :formats
+ :variants
+ 
+ The :content_type option
+ By default, rails wil  serve the results of a rendering operation with the MME content- type of text/html(or application/json if you use :JSON option, or application/xml for the :xml option) There are times when you might like to change this, and you can do so bby setting the :content_type option:
+ render template: "feed", content_type:
+ "application/rss"
+ 
+ The Layout Option
+ 
+ 
+ 
 
