@@ -1,0 +1,1339 @@
+What is active record Query interface?
+If youre used to using raw SQL to find database records, then you will generally find that there are better ways to carry out the same operations in rails. Active records insulates you from the need to use SQL in most cases.
+Active record will perform queries on the database for you and is compatible with most database system, including mySQL mariaDB, PostgreSQL, and SQlite.
+Regardless of which database system you're using, the Active mettho format  will always be the same.
+Code esxample throught this guide will refer to one of the more of the following models:
+All of the following models use id as the primary key, unless specified otherwise 
+class Author < ApplicationRecord
+has_many :books, -> { order(year_publish: :desc) }
+end
+
+class Book < ApplicationRecord
+belongs_to : supplier
+belongs_to :author
+has_many :reviews
+has_and_belongs_to_many :orders, join_table: 'books_orders'
+scope :in_print, -> { where(out_of_print: false) } 
+scope :out_of_print, -> { where(out_of_print: true) }
+scope :old, -> { where('year_published < ?', 50.years.ago ) }
+scope :out_of_print_and_expensive, -> {
+out_of_print.where('price > 500") }
+scope :cost_more_than, ->(amount) {where('price > ?', amount) }
+end
+
+class Customer <ApplicationRecord
+has_many :orders
+has_many:reviews
+end
+
+class order <ApplicationRecord
+belongs_to :customer
+has_and_belongs_to_many :books, join_table:
+'books_orders'
+enum :status, [:shipped, :being_packed, :complete, :cancelled]
+scope :created_before, ->(time) {where('created_at <?', time) }
+end
+ 
+ 
+vlass Review < ApplicationRecord
+belongs_to :customer
+belongs_to :book
+
+enum :state, [:not_reviewed, :published, :hidden]
+end
+
+class Supplier <ApplicationRecord
+has_many :books
+has_many :authors, through: :books
+end
+
+
+Retrieving data from the database
+To retrieve data from the database, ActivveRecord provides several finder methods. Each finder method allows you to pass arguments into it to perform certain queeries on your database without wwwritting raw SQL.
+The method are:
+annotate
+find
+create with 
+distinct
+aeager_load
+extending
+extract_associated
+from 
+group 
+having
+includes
+joins
+left_outer_joins
+limit
+lock
+none
+offset
+optimizer_hints
+order
+preload
+readonly
+reference
+reorder
+reselect
+reverse_order
+select
+where
+
+Finder methods that return a collection, such as where and group, return an instance of ActiveRecord::Relation. Methods that find a single entity, such as find and first, return a single instance of the model.
+The Primary operation of Model.find(options) can be summarized as:
+- Convert the supplied options to an equivalent SQL query.
+- Fire the SQL query and retrieve the corresponding results from the database.
+Instantiate the equivalent ruby object of the appropriate model for every resulting row.
+Run after_find and then after_insitialize callbacks, if any.
+
+Retrieving a single Object
+Active Record providfes several different ways of retrieving a single object.
+
+Find 
+Using the find method, you can retrieve the object corresponding to the specified perimary key that matches any supplied option, for example:
+#find the customer with primary key (id) 10
+irb> customer = Customer.find(10)
+=>Customer id: 10, first_name: "Ryan">
+
+The SQL equivalent to the above is :
+SELECT * FROM customers WHERE (customers.id = 10) LIMT 1
+The find method will raise an ActiveRecord: :RecordNot Found exception if no matching record is found.
+You can also use this method to query for multiple objects. Call the find method
+and pass in an array of primary keys. For example:
+#find the customers withj primary key 1 and 10
+irb> customers = Customer.find([1,10]) # OR 
+Customer.find(1,10)
+=> [#<Customer id: 1. first_name: "Lifo">, #<Customer id: 10, first_name: "Ryan">
+
+The SQL equivalent of the above is:
+SELECT *FROM cudstomers WHERE (customers.id IN (1,10))
+the find method will raise an ActiveRecord::RecordNotFound
+exception unless a matching record is found for all the supplied Primary keys.
+
+take 
+the take method retrieves a reccord without any implicit ordering. for example:
+irb> Customer = Customer.take
+=> #<customer id: 1, first_name: "Lifo">
+
+The SQL equivalent of the above is:
+
+SLECt * FROM customers LIMIT 1
+The take method returns nil if no record is found and no exception will be raised 
+You can pass in a numerical argument to the taks method to return up that number of results, for example 
+irb> customers = Customer.take(2)
+=> [#Customer id: 1, first_name : "Lifo">, #,customere 
+id: 220, first_name: "Sara">]
+
+The SQL equivalent of the above is :
+SELECT * FROM customer LIMIT 2
+The take! method behaves exactly like, except that it will raise Activerecord::RecordNotFound if no matching is found
+The retrieved record may vary depending on the database engine.
+first
+The first method finds the first record ordered by primary key (default). for example
+irb> customer = Customer.first
+=> #Customer id: 1, first_name: "Lifo">
+
+The SQL equivalent of the above is: 
+SELECT * FROM customer ORDER BY customer.id ASC LIMIT 1
+
+the first method returns nil if no matching record is found and no exception willl be raised If your default scope contains an order method, first will return the first record according to the ordering.
+You can pass in a numerical argument to the first method to return up to theat number of results. For example
+irb> Customers = Customers = Customer.first(3)
+=> [#<customer id: 1, first_name: "Lifo"> #<customer id: 2, first_name: "Fifo">, #<customer id:3,
+first_name : "Fifo">]
+The SQL equivalent of the above is:
+SELECT * FROM customers order BY customers.id ASC LIMIT 3
+On a collection that is ordering using order.first will return the first record order by the specified attribute for order.
+irb> customer = Customer,order(:first_name).first
+=> #<customer id : 2, first_name: "Fifo">
+The SQL equivalent of the above is: 
+SELECT * FROM customers ORDER BY customers.first_name ASC LIMIT 1
+
+The first! method behaves exactly like fist, except that it will raise ActiveRecord::RecordNotFound if no matching record is found.
+example 
+irb> customer = Customer.lastt 
+=> #Customer id : 221, first_name : "Russel">
+The SQL equivalent of the above is: 
+SELECT * FROM cusotmers ORDER BY customers.id DESC LIMIT  1
+The last method returns nil if no matching record is found and no exception will be raised.
+
+if your default score contains an ordfer method, last will return the last record according to this ordering.
+You can pass in a numerical argument to the last method to return up to that number of results. for example
+
+irb> customer = Customer.last(3)
+=> [#<customer id: 219, first_name: "James">, #<Custoemr id: 220, first_name: "Sara">, #<customer id: 221,
+first_name: "russsel">]
+The SQL equivalent of the above is:
+SELECT * FROM customers ORDER BY customers.id DESC LIMIT 3
+On a collection that is ordered using order, last will return the last record ordfered by the specified attributes for order .
+irb> customer = Cusotmer.order(:first_name).last 
+=> #<customer id: 220, first_name: "Sara">
+
+The SQL equivalent of the above is:
+SELECT * FROM cusotmers ORDER BY customers.first_name DESC LIMIT 1
+The last! method behaves exactly like last, except that it will raise ActiveRecord::RecordNotFound if no matching record is found.
+find_by
+The find_by method finds the first record matching some conditions. For example:
+irb> Cusotmer.find_by first_name: "Lifo'
+=> #<Customer id: 1, first_name: :"Lifo">
+
+irb> Customer.find_by first_name: 'Jon'
+=>nil
+It is equivalent to writing:
+Cusotmer.where(first_name: 'Lifo').take
+the SQL equivalent of the above is:
+SELECT * From customer WHERE (customer.first_name = 'Lifo') LIMiT 1
+
+note that there is no ORDER BY in the SQL. If your find_by conditions can match multiple records, you should apply an order to deterministic result.
+
+The find by! method bbehaved exactly like find_by except that it will raise ActiveRecord::RecordNotFound if no matching is found, forr example:
+irb> Customer.find_by! first_name: 'does not exist'
+ActiveRecord::RecordNotFound
+this is equivalent to writting
+Customer.where(first_name: 'does bot exist').take!
+Retrieving Multiple Objects in Batches
+We often need toiterate oever a large set of records, as when we send a newsletter to a lare set of customers, or whenwe export data.
+This is appear strightforward:
+#this may consume too much memory if the table is big. 
+Customer.all.each do |customer|
+NewsMailer.weekly(customer).deliver_now
+end
+By this approach becomes incereasingly impractical aas the table size increases, since Customer.all.each instruct Active Record to fetch the entire table in a single pass, builsd a model object per row , and then keep the entire arrray of model objects in memory, indeed, if we have a large number of records, the entire collection may exceed the amount of memory availabl.
+Rails provided two methods that address this problem by dividing records into memory- friendly batches for processing the First method find_each retrieves a batch of records and then yields each record to the block individually as a model. The entire batch to the block as an array of models.
+The find_each and find_in_batchs methods are intended for use in the batch processing of a large number of records that wouldn't fit in the memory of all at once If you just need to loop over a thousand records the regular find methods are preferred option.
+find_each 
+thefind_each
+The find_each method retrieves records in batches and then yields each one to the block in the following example. find_each retrieves customers in batches of 1000 and yieldss them to block one by one
+Customer.find_each do |customer|
+Newsmailer.weekly(sustomer).deliver_now
+end
+this process is repeated, fetching more batches as needed, untill all of the records have been processed.
+find_each works on model classes as seen above and also on relations:
+Cusotmer.where (weekly_subscriber: true).find_each do 
+|customer|
+NewsMailer.weekly(suctomer).deliver_now
+end
+as l;ong as they have no ordering, since the method needs to force an order internally to iterate.
+If an order is present in the receiver the behaviour depends on the flag config.active_record.error_on_ifnored _order If true, ArgumentError is raised otherwise the orderis ignored and a warning issued, which is the default this can be overriden with the option :error_on_ignore
+explain below
+Option for find_each
+:batch_size
+The :batch_size option allows you to specify the number of recordss to be retrieved in each batch, before being passed individually to the blockj. For example to retrieve records in batches of 5000:
+
+Customer.find_each(batch_size: 5000) do |customer|
+NewsMailer.weekly(customer).deliverable_now
+end
+:finish 
+Similar to the :start  option :finish allows you to configure the last ID of the sequence whenever the highest ID is not the one you need. This would be useful, for example,if you wnated to run a barch process using a subset of record based on :start and:finish
+For example, to sned newsletter only to customers with  the primary key from 2000 up ot 10000:
+
+Customer.find_each(start: 2000, finish:10000) do
+|customer|
+Newsmailer.weekly(customer).deliver_now
+end
+Another example would be if you wanted multiple workers handling the same processing queue You could have each worker handle 1000 records by setting the appropriate :start and :finish option on each worker.
+:error_on_ignore
+Ovverrides the application config if an error if aan error should be raised when an order is present in the relation.
+
+find_in_batches 
+the find_in_batches method is similar to find_each since both retrieve batches of record the difference is that find_in_batch ields batches to the block as an array of models, instead of individually The following example will yield to the supplied block an array of up to 1000 customers at a time, with the final block containig any remaining customers:
+
+#Give add_customers an array of 1000 customers at a time
+Customer.find_in_batches do |customers|
+export.add_customers(customers)
+end
+find_in_batches works on model classes, as seenabove, and also on relations:
+#give add_customers an array of 1000 recently active customers at at a time.
+Customer.recently_active.find_in_batches do |customers|
+export.add_customers(customers)
+end
+as long as they have no ordering since the method needs to force an order internally to iterate.
+Option for find_in_batches
+the find_in_batches mehod accepts the same option as find_each:
+:batch_size
+Just like for find_each, batch_size establishes how many rcords will be retrieved in each in each group. For example, retrieving batches of 2500 records can be specified as:
+
+Customer.find_in_batches(batch_size: 2500) do
+|customers|
+export.add_customers(customers)
+end
+
+:start 
+The start option allows you specifying the beginning ID from where records will be selected. As mentioned before By default records are fetching in ascending order of the primary key For example, For example to retrieve customers starting on ID: 5000 in batches of 2500 records the following code can be used :
+Customer.find_in_batches(batch_size: 2500, start: 5000)
+do |customers|
+export.add_customers(customers)
+end
+:finish
+The finish option allows specifying the ending ID of the records to be retrieved. The code below shows the case of retrieving customers in batches, up to the customer with ID : 7000
+Customer.find_in_batches(finish: 7000) do |customers|
+expert.add_customers(customers)
+end
+:error_on_ignore
+The error_on_ignore option overrides the application config if an error should be raised when a specified order is presented in the relation.
+
+Conditions
+The where methods allows you to specify conditions to limit the records returned, representing the where part of the SQL statement Conditions can either be specified as a string. array or hash 
+Pure string conditions
+If you'd like to add conditions to your find, you could just specified them in there, just like Book.where(title= 'introduction to algorithms' ") This will find all books where the title fields values is 'Introducing to algorithms'.
+
+Builders your own conditions as pure strings can leave you vulnerable to SQL injection exploits. For example Book.where("title Like '%3 {params[:title]}%'") Is not safe. see the next section for the preferred way to  handle conditions using an array.
+
+Array conditions 
+Now what if that title could vary say an argument from somewhere? The find would then taken the form : Book.where ("title = ?", params[:title])
+to this code:
+Book.where("title = #{params[:title]}")
+because of argument safety. Putting the variable directly into the conditions string will pass the variable to the database as-is this means that it will be an unescaped variable directly from a user who may have malicious intent. If yu do this, you put your entire database they can do just because once a user finds out they can exploit your database they can do just about anything to it never ever put your argument directly insider the conditions string.
+From more information on the dangers of SQL injections. see the ruby on rails Security Guide.
+
+Placeholder conditions
+Similar to the (?) replacement style of params, you can also specify keys in your conditions string along with a corresponding keys/values hash:
+Book.where("created_at >= :start-date AND ctreated_at <= :end_date",
+{start_date: params[:start_date], end_date:
+params[:end_date]})
+
+This makes for clear readability if you have a large number of variable condiitons.
+
+Conditions That use LIKE
+Although conditions arguments are automatically escaped to prevent SQL injection, SQL LIKE wildcards (i.e., % and _) are not escaped This may causes unexpected behaviour if an unsdanitized value is used in an argument. for example:
+Book.where("title LIKE ?", params[:title] + "%")
+In the above code, the intent is to match titles that start with a user-specified string.
+However, any occurences of the % or _ in params[:title] will be treated as wildcards, leading to surprisingly query reesults, in some circumstances, this may also prevent the database from using an intendfed index, leading to a much slower query.
+
+To avoid these problems, use sanitize SQL like to escape wildcard characters, in the relevant portion of the argument :
+Book. where("title LIKE ?",
+Book.sanitize_sql_like(params[:title]) + "%")
+Hash Conditions
+Active Record also allows yout o pass in hash conditions which can increase the readability of your conditions syntax. With hash conditions, you pass in a hash with keys of the fields you want qualified and the values of how you want to qualify them :
+Only  equal, range, and subset checking are possible with hash conditions.
+
+Equality conditions 
+Book.where(out_of_print: true)
+This will ggenerate SQL like this:
+SELECT * FROM books WHERE (books.out_of_print = 1)
+The field name can also be a string:
+Book.where('out_of_print' => true)
+In the case of a belongs_to relationship, an asociation key can be used to specify the model if an Active record object is used as the value. This method works with polumorphic relationship as well.
+author =Author.first
+Book.where(author:author)
+Author.joins(:books).where(books: {author:author } )
+Range conditions
+Book.where(created_at : (time.now.midnight - 1.day)..Time.now.midnight)
+This will find all books created yesterday by using a BETWEEN SQL statement:
+SELECT* FROM books WHERE (books.created_at BETWEEN '2008-12-21 0000:00' AND '2008 - 12- 22 00:00:00')
+This demonstrates a shorter syntax for the examples in Array Conditions
+Subset Conditions 
+If you want to find a shorter syntax for the example in Array Conditions 
+Subset Conditions
+If you want to find record using the IN expression you can pass an array to the conditions hash :
+
+Customer.where(order_count: [1,3,5])
+This covde will generate SQL like this:
+SELECT * FROM cutomers WHERE (customers.orders_count IN (1,3,5))
+NOT Conditions
+NOT SQL queries can be built by where.not:
+Customer.where.not(orders_count: [1,3,5])
+In other words, this query can be generated by calling where with no argument, then immediately chain with not passsing where conditions. This will generate SQL like this:
+SELECT * FROM customers.order_count NOT IN (1,3,5))
+if a query has a hash condition will not-nil values on a nullable column, the records that have nil values on the nullable column won't be returned. For example:
+Customer.create!(nullable_country:nil)
+Customer.where.not(nullable_country: "UK")
+=> []
+#But
+Customer.create!(nullable_country: "UK")
+Cusotmer.where.not(nullable_country:nil)
+=> [#<Customer id: 2, nullable_country: "UK">]
+OR Conditions]OR conditions between two realations can be build by calling or on the first relation, and passing the second one as an argument.
+Customer.where(last_name:
+'Smith').or(Customer.where(ordfers_count: [1,3,5]))
+SELECT* FROM customers WHERE (customers.last_name = 'Smith' OR customers.order_counts IN (1,3,5))
+AND Conditions
+AND conditions can be built by chasing where conditions.
+Customer.where(last_name: 'Smith').where(orders_count: [1,3,5]))
+SELECT *FROM cusotmers WHERE customers.last_name = 'Smith' AND customers.orders_count IN (1,3,5)
+AND conditions for logical intersections between relations can be built by calling and on the first relations and passing the seconfd one as an argument.
+Customer.where(id: [1,2]).and(Customer.where(id: [2,3]))
+SELECT * FROM customers WHERE (customers.id IN (1,2)
+AND customers.id IN (2,3)
+
+ORDERING
+To retrieve records from the databse ina specificx order, you can use the order method
+For example, if you're getting aset of records and want to order them in ascending order by the create_at field in your table:
+
+Book.ordfer(:created_at)
+# OR 
+Book.order("created_at")
+You could specify ASC or DESC as well :
+Book.order(created_at: :desc)
+# OR 
+Book.order(created_at: :asc)
+# OR
+Book.order("created_at DESC")
+# OR 
+Book.order("created_at ASC")
+
+OR  ordering by multiple fields :
+Book.order(title: :asc, created_at: :desc)
+#OR 
+Book.order(:title, created_at::desc)
+#OR 
+Book.order("title ASC, created_at DESC")
+If you want to call order multiple times, subsequent orders will be appended to the first,
+irb> Book.order("title ASC").ordfer("created_at DESC")
+SELECT * FROM books ORDER BY title ASC, created_at DESC
+In most database systems, on selecting fields with distimnct from a result set using methods like select, pluck and ids: the order mmethod will raise an ActiveRecord::StatementInvalid exception unless the fields used in order clasuse are included in the select list See the next section for selecting fields from the result set.
+
+Selecting Specific Fields
+By dfefaults, Model find selects all the fields from the result set using select * .
+
+To select obly a subset of fields from the result set, you can specify the subset via the select method
+For example, to select only isbn ans out_of_print columns:
+Book.select(:isbn, :out_of_print)
+#OR 
+Book.select("isbn, out_of_print")
+Rhe SQL query used by this find call will be somewhat like
+SELECT isbn, out_of_print FROM books
+Be careful because this also menas you're initializing objects with only the fields that you've slected. If you attempt to access a field that is not in the initialized record you'll receive 
+Active model:: MissingAttributeError: missing attribute: <attribute>
+Where <attribute> is the attribute you asked for. The id method will not raise the activeRecord::MissingAttrinuteError, so just be careful when working with associations because they need the id method to function properly.
+
+If you would like to obly grab record per unique value in a cerain field, you can use distinct:
+Customer.select(:last_name).distinct
+This will generate SQL like:
+SELECT DISTINCT last_name FROM customers
+You can remove the uniqueness constraints:
+
+#return unique last_names
+query = Cusotmers.select(:last_name).distinct
+
+#returns all last_names, even if there are duplicafted 
+query.distinct(false)
+
+LIMIT and OFFSET
+To apply limit to the SQL fired by the Model.find you can specify the limit and offset methods on the relation.
+You can limit to specify the number of records to be retrieved and use offset to specify the number of records to skip before starting to return the records For example
+
+Customer.limit(5)
+will return a maximum of 5 customers and bcause it specifies no offset it will return the first 5 in the table the sQL it executes loks like this:
+SELECT *FROM customers LIMIT 5
+Adding offset to that
+Customer.limit(5).offset(30)
+will return instead a maximum of 5 customers beginning with the 31st. The SQL liiks like
+SELECT * FROM customers LIMIT 5 OFFSET 30 
+GROUP 
+To apply a group BY clause to the SQL fired by the finder, you can use the group method 
+For Example, if you want to find a collection of the dates on which orders were created :
+
+Order.select("created_at").group("created_at")
+And this will give you a single Order object for each date where there are orders in the databse 
+The SQL that would be executed would be something like this: 
+
+SELECT created_at
+FROM orders
+GROUP BY created_at
+
+Total of grouped items
+To get the total of grouped items on a single query call count after the group 
+irb> Order.group(:status).count
+=> {"being_packed" => 7. "shipped" => 12}
+The SQL that would be executed would be something like this:
+SELECT COUNT (*) AS count_all status AS status 
+FROM orders
+GROUP BY  status
+
+HAVING
+SQL uses the having clause conditions on the GROUP BY fields. You can add the HAVING clause to the SQL fired by the Model.find by adding the having method to the find.
+For Example
+
+Order.select("created_at, sum(total) as total_price"),
+group("created_at").having("sum(total) > ?", 200)
+
+The SQL that would be executed would be something like this:
+SELECT created_at as ordered_date, sum(total) as 
+total_price
+FROM orders
+GROUP BY created_at
+HAVING sum(total) > 200
+This return the date and total price for each order object, grouped by the day they were ordered and where the total is more than $200
+You would access the total_pricefor each order returned like this:
+big_orders = Order.select("created_a, sum(total) as total_price")
+.group("created_at")
+.having("sum(total) > ?", 200)
+
+big_order[0].total_price
+#returns the total price for the first orderobject.
+
+Overriding Conditions
+unscope
+You can specify conditions to be removed using the unscope method. For example:
+Book.where('id>100').limit(20).order('id desc').unscope(:order)
+The SQL that would be executed:
+SELECT * FROM books WHERE id > 100 LIMIT 20 
+--Originaly query without unscope
+SELECT * FROM books WHERE id> 100 ORDER BY id desc
+LIMIT 20
+
+You can unscope specified where clauses.. For example, this will remove id conditions from the where clause:
+Book.where(id: 10, out_of_print: false).unscope(where: :id)
+#SELECT books. * FROM books WHERE out_of_print =0
+
+A relation which has been unscope will affect any relation into which it is merged:
+Book.order('id desc').merge(book.unscope(:order))
+#SELECT books. * FROM books
+
+ONLY 
+You can also override conditions using the only methods. For example:
+Book.where('id>10').limit(20).order('id desc').only(order, :where)
+The SQL that would be executed:
+
+SELECT * FROM books WHERE id > 10 ORDER BY id DESC 
+--Original query without 'only'
+SELECT * FROM books WHERE id > 10 ORDER BY id DESC
+LIMIT 20
+
+reselect
+The reselect method overrides an existing select statement for example
+Book.select(title, :isbn).reselct(:created_at)
+The SQL that would be executed:
+SELECT 'books'.'created_at 'FROM 'books'
+Compare this to the case where the reselect clause is not used:
+
+Book.select(:title, :isbn).select(:created_at)
+the SQL executed would be :
+SELECT 'books'.'title,'books'.isbn',
+'boks'.created_at' FROM 'books'
+reorder
+The reorder
+THe reorder methid overrides the default scope order For example if the class definition includes this:
+class Author < ApplicationRecord
+has_many :books, -> { order(year_published: :desc) }
+end
+And you execute this : 
+Author.find(10).books
+The SQL that would be executed:
+SELECT* FROM author WHERE id = 10 LIMIT 1
+SELECT * FROM books WHERE author_id = 10ORDER BY year_published DESC
+you can using the reorder clause to specify a different way to order the books:
+Author.Find(10).books.reorder('year_published ASC')
+The SQL that would be executed:
+SELECT * FROM authors WHERE id = 10 LIMIT 1
+SELECT * FROM books WHERE author_id = 10 ORDER BY year_published ASC
+reverse_order
+The reverse_order method reverses the ordering clause if specified
+Book.where("author_id> 10").order(:year_published).reverse_order
+The SQL that would be executed:
+SELECT * FROM books WHERE author_id> 10 ORDER BY year_published DESC
+If no ordering clause is specified in the query the reverse_order orders by the primarykey in reverse order.
+Book.where("author_id > 10").reverse_order
+The SQL that would be executed:
+SELECT * FROM books WHERE author_id>10ORDER BY 
+books.id DESC
+The reverse_order method accepts no arguments.
+
+rewhere
+The rewhere method overrides an existing, named where condition. For example:
+Book.where(out_of_print: true).rewhere(out_of_print: false)
+The SQL that would be executed:
+SELECT * FROM books WHERE 'out_of_print = 0
+If the rewhere clause is not used. the where clauses are ANDed together:
+
+
+Book.where(out)_of_print: true).where(out_of_print: false)
+the SQL executed would be:
+SELECT * FROM books WHERE 'out_of_print' = 1 AND 'out_of_print' = 0
+
+Null relations
+The none method returns a chainable relation with no record . Any subsequent conditions chained to the returned relation will continue generating empty relations. This is useful in scenarios where you need a chainable response to a method or a scope that could return zero results.
+
+Book.none # returns an empty Relation and fires no queries.
+# The highlightened_reviews method below is expected to always return a relation.
+Book.first.highlifghted_reviews.average(:rating)
+# => Return average rating of book
+class Book
+#returns reviews if there are at least 5,
+# else consider thain as non-reviewed book 
+def highlighted_reviews
+if reviews.count>5
+reviews
+else
+Review.none #Does not meet mminimum threshold yet
+end
+end
+end
+
+Readonly Objeccts
+Active Records provides the readonly method on a realtionship to explicitly disallow modification of any of the returned objects. Any attempt to alter a readonly record will not succed, raising an ActiveRecord::Readonly Record exception.
+customer = Customer.readonly.readonly.firsts
+customer.visits +=1
+customer.save
+As customer is explicitly set to be readonly objects, the object code will raise as ActiveRecord::ReadOnlyRecord exception when calling customer.save with an updated value of visits.
+Locking Records for update
+Locking is helpful preventing race conditions when records in the database and ensring atomic updates.
+Active Record provides two locking mechanisms:
+Optimistic locking
+Pessimistic Locking
+
+Optimistic Locking
+Optimistic Locking
+Optimistic Locking allows multiple users to access the same record for edits, and assume a minimum of conflicts with the data. It does this by checking whether another process has made changes to a record since it was opened. An ActiveRecord::StableObjectError exception is thrown if that has occured and the update is ignored.
+Optimistic locking column
+In order to use optimistic locking. the table needs to have a column called lock_version of type integer. Each time the record is update. Active Record increments the lock_version column If an update request is made with a lower value in the lock_version field than is currently in the lock_version column in the database, the update request will fail with an ActiveRecord::StableObjectError.
+For Example:
+
+c1 = Customer.fimd(1)
+c2 = Customer.find(1)
+
+c1.first_name = "Sandra"
+c1.save
+
+c2.first_name = "Michael"
+c2.save #Raises an ActiveRecord::StableObjectError
+
+You're then responsible for dealing with the conflicts by rescuing the exception and either rolling back, merging, or otherwise apply the business logic needed to resolve the conflicts.
+
+THis behaviourr can be turned off by setting 
+ActiveRecord::Base.lock_optimistically = false
+To overrides the name of the lock_version column, ActiveRecord::Base provides a class attributes called locking_column:
+class Customer < ApplicationRecord
+self.locking_column = lock_customer_column
+end
+
+Pessimistic Locking
+Pessimistic Locking
+Pessimistic Locking uses a locking mechanism provided by the underlying databse Using lock when building a relationship obtaina an exclusive lock on the selected rows. Relations using lock are usually wrapped inside a transaction for preventing deadlocks conditions.
+
+For example:
+Book.transaction do
+book = Book.lock.first
+book.title = 'Algorithms, second Edision'
+book.save!
+end
+
+The above session produces the following SQL for a MYSQL backend:
+
+SQL (0.2ms) BEGIN
+Book Load (0.3ms) SELECT * FROM 'books LIMIT 1 FOR UPDATE
+book update (0.4ms) UPDATE 'books' SET updated_at' = '2009-02-07 18:05:56', 'title' = 'Algorithms, second edition' WHERE 'id' = 1
+SQL (0.8ms) COMMIT
+
+You can also pass raw SQL to the lock method for allowing different types of locks For example, mySQL has an expression called LOCK IN SHAPE MODE where you can lock a record but still allow other queries to read it. To specify this epression just pass it in as the lock option:
+Book.transaction do
+book = Book.lock("LOCK IN SHARE MODE").find(1)
+book.increment!(:views)
+end
+
+Note that your databse must support the raw SQL that you pass in to the lock method
+If you already have an instance of your model, you can start a transaction and acquire the lock in one go using the following code:
+book = Book.first
+book.with_lock do
+#this block is called within a transaction,
+#book is a;ready locked.
+book.increment!(:views)
+end
+
+Joining Tables
+Active Record provides two finder methods for specifying JOIN clauses on the resulting SQL: joins and left_outer_joins. While joins shoulsd be used for INNER JOIN or custom queries.left_outer_joins is used for queries using LEFT OUTER JOIN.
+
+joins 
+There are multiple ways to use the joins method.
+
+Using a string SQL fragment 
+You can just supply the raw SQL specifying the join clause to joins:
+ Author.joins("INNER JOIN books ON books.author_id = authors.id AND books.out_of_print = FALSE")
+ THis will resultin the following SQL : 
+ SELECT authors.* FROM authors INNER JOIN books ON 
+ books.author_id = authors.id AND books.out_of_print = FALSE
+ 
+ Using Array/HAsh of named Associations
+ ActiveRecord lets you use the names of the association defined on the model as a shortcut for specifying JOIN clause for those associations when using the joins method.
+ All of the following will produce the expected join queries using INNER JOINS: 
+ joining a single Association
+ Book.joins(:reviews)
+ This produces :
+ SELECT books. * FROM books
+ INNER JOIN reviews ON reviews.book_id = books.id
+ Or, in English "return  Book object for all books with reviews. Note that you will see duplicate books if a book has more than one review. If you want unique books, you can use Books.join(:reviews).distinct.
+ 
+ Joining multiple Associations
+ Book.Joins(:author, :reviews)
+ This produces:
+ SELECT books. * FROM books
+ INNER JOIN authors ON authors.id = books.author_id
+ INNER JOIN reviews ON reviews.book_id = books.id
+ 
+ Or in english "return all books with their author that have at least one review". Note again that books with multiple reviews will show up multiple times.
+ Joining Nested Association (single Level ) 
+ Book.joins(reviews::customer)
+ This produces :
+ SELECT books. * FROM books 
+ INNER JOIN reviews ON reviews.book_id = books.id 
+ INNER JOIN customers ON customers.id = reviews.customer_id
+ Or,in English: "return all books that have a review by a customer."
+ 
+ Joining Nested Association (multiple Level)
+ Author.joins(books: [{reviews: {customer: :orders}
+ }, :supplier])
+ 
+ This will produce the result
+ 
+ SELECT * FROM authors 
+ INNER JOIN books ON books.author_id = authors.id
+ INNER JOIN reviews ON reviewa.book_id = books.id
+ INNER JOIN customers ON customer.id = 
+ reviews.customer_id
+ INNER JOIN order ON orders.customer_id = 
+ customeres.id 
+ INNER JOIN suppliers ON suppliers.id = 
+ books.supplier_id 
+ Or,in english: "return all authors that have book with reviews and have been ordered by a customer, and the suppliers for those books."
+ 
+ Specifying Conditions on the Joining Tables
+ You can specify conditions on the Joining tables using the regular Array and String 
+ conditions. Hash conditions provide a special syntax for specifying conditions for the joining tables:
+ time_range = (Time.now.midnight - 1.day)..Time.now.midnight
+ Customer.joins(:orders).where('orders.created_at' => time_range).distinct
+ 
+ This will find all cusotmers who have orders that were created yesterday, using a BETWEEN SSQL expression to compare created_at
+ An alternative and cleaner syntax is to  nest the hash conditions:
+ time_range = (Time.now.midnight - 1.day)..Time.now.midnight
+ Customer.joins(:orders).where(orders: { created_at:
+ time_range] ).distinct
+ 
+ class Order < ApplicationRecord
+ belomgs_to :customer
+ scope : created_in_time_range, ->(timer_range) {
+ where(created_at: time_range)
+ }
+ end
+ Now we can use merge to merge in the created_in_time_range scope 
+ time_range = (Time.now.midnight - 1.day)..Time.now..midnight
+ Customer.joins(:orders).merger(order.created_in_timer_range(time_range)).distimct
+ 
+ This will find all customers who have orders that were created yesterday, again using a BETWEEN SQL expression.
+ 
+ left_outer_joins
+ If you want to select records wheter ornot they they have associated records you can use the left_order_joins method.
+ 
+ Customer.left_outer_joins(:reviews).distinct.select('customers.*. COUNT(reviews. *) AS
+ reviews_count').group('customers.id')
+ 
+ Which produces :
+ SELECT DISTINCT customers. * COUNT(reviews. *) AS reviews_count FROM customers 
+ LEFT OUTER JOIN reviews ON reviews.customer_id = 
+ customers.id GROUP BY customers.id
+ Which means: "return all customers with their count of reviews, wheather or not hey have any reviews at all"
+ 
+ Eager Loading Associations
+ Eager loading is mechanism for loading the associated records of the objects returned by Model.find using as few queries as possible.
+ 
+ N+1 queries problem
+ Consider the following code, which finds 10 books and prints their authors' last_name:
+ 
+ books = Book.limit(10)
+ books.each do |book|
+ puts book.author.last_name
+ end
+ This code looks fine at the first sight. But the problem lies within the total number of queries executed. The above code executed 1 (to find 10 books) +10 (one per each book to load the author) = 11 queries in total.
+ 
+ Solution to N+1 queries problems
+ Active Record lets you specify in advance all the associations that are goin to be loaded
+ The method are:
+ includes
+ preload
+ eager load
+ 
+ includes
+ With includes, active Record ensures that all of the specified associations are loaded using the minimum possible number of queries.
+ Revisiting the above case using the includes method, we could rewrite Book.limit(10) to eager load authors:
+ 
+ books = Book.includes(:author). limit(10)
+ 
+ books.each do |book
+
+puts book.author.last_name
+end
+
+The above code will execute just queries, as opposed to the 11 queries from the original case:
+
+SELECT 'books'.* FROM 'books' LIMIT 10 
+SELECT 'authors'.* FROM 'authors'
+WHERE 'authors '.'book_id` IN(1,2,3,4,5,6,7,8,9,10)
+
+Eager loading multiple Associations
+Active REcord lets you eager load any number of associations with a single Model.Find call by using an Array hash, or nested or nested hash with th encludes method.
+
+Array of multiple Associations
+Customer.includes(:orders, :reviews)
+
+This loades all the customers and the associated orders and reviews for each.
+
+Nested Associations HAsh
+Customer.includes(order:{books: [:supplier,:author]}).find(1)
+
+This will find the customer with id 1 and eager oad all of the associated orders for it, the books for al of the orderss, and the author and supplier for each of the books.
+
+Specifying conditions on eager loaded Associations
+Even though ActiveRecord lets you specify conditions on the eager loaded associations just like joins the recommended way is to use joins instead.
+
+However if yiu must do this, you may use where as you would normally.
+
+Author.includes(:books).where(books: { out_of_print: true })
+
+This would generate a query which contains a LEFT OUTER JOIn whereas the joins methods would generate one using the INNER JOIN function instead.
+
+SELECT authors.id AS t0_r0 ... books.update_at AS
+t1_rs FROM authors LEFT OUTER JOIN "books" ON 
+"books". "author_id" = "authors". "id" WHERe
+(books.out_of_print =1)
+
+If there was no where condition, this would generate the normal set of two queries.
+Using where like tis will only work when you pass it a hash for SQL fragment you need to use  reference to forve joined tables:
+Author.includes(:books).where("books.out_of_print = true").refernces(:books)
+
+If, in the case of this includes queries, there were no books for any authors, all the authors would still be loaded by using joins (an INNER JOIN) the join conditins must match, otherwise no records will be records will be returned.
+
+If an association is eager loaded as part of a join, any fields from custom select clause clause will not be present on the loaded models. This is because it is ambious wheteher they should appear on teh parent record or the child.
+
+Preloaded
+with preloaded Active Record loads each specified association using one query per association.
+Revisiting the N +1 1 queries problems, we could rewrite Book.limit(100 to preload authors:
+
+books = Book.preload(:author).limit(10)
+
+books.each do |book|
+puts book.author.last_name
+end
+
+The above code will execute just 2 queries, as opposed to the 11 queries from the original case :
+
+SELECT `books`.* FROM `books` LIMIT 10 
+SELECT  `authors`.* FROM `authors `
+WHERE `authors`.`book_id` IN(1,2,3,4,5,6,7,8,9,10)
+ 
+The preload method uses an array, hash or a nested hash of array/hash in the same way as the include method to load any number of associations with a single Model.find call However unlike the include methods it is possible to specify conditions for preloaded associations.
+
+eager_load
+With eager_;oad, active Record loads al specified association using a LEFT OUTER JOIN 
+Revisiting the case where N+1 was occured using the eager_load method, we could rewrite Book.limit(10) to authors:
+
+books = Book.eager_load(:author).limit(10)
+
+books.each do |book|
+puts book.author.last_name
+end
+
+The above code will execute just 2 queries as opposed to the 11 queries from the original case:
+
+SELECT DISTINCT `books`.`id`FROM`books` LEFT OUTER JOIN `authors` ON `authors`.`book_id` = `books`.`id`
+LIMIT 10 
+SELECT `books`.`id` AS t0_r0, `books`last_name` AS t0_r1,...
+FROM `books` LEFT OUTER JOIN `autors` ON 
+`authors`.`book_id` = `books`.`id`
+WHERE `books`.`id` IN(1,2,3,4,5,6,7,8,9,10)
+
+The eager_load method uses an array, hash, or a nested hash of array/hash in the same way as the includees methods to load any number of associations with a single Model.find call, Also like the includes methods, you can specify conditions for eager loaded associations
+
+Scopes
+Scoping allows you to specify commonly used queries which can be referenced as method calls on the association objects or models. With these scopes, you can use every method previously covered such as where, joins and includes. All scope bodies should return an ActiveRecord:: Relations or nil to allow for further methods (such as other scopes ) to be called on it.
+
+To define a simple scope we use the scope method inside the class passing the query that we'd like to run when this scope is called:
+
+class Book < ApplicationRecord
+scope :out_of_print, -> {where(out_of_print: true)}
+end
+To call this out_of_print scope we can call it on either the class :
+
+irb> Book.out_of_print
+=> #ActiveRecord:: Relation> # all out of print books
+
+Or on an association consisting of book objects:
+
+irb> authors = Active.first
+irb. author.books.out_print
+=> <ActiveRecord::Relation> #all out of print books by author
+
+Scopes are always chainable within scopes:
+class Book < ApplicationRecord
+scope :out_of_print, -> {where(out_of_print: true) }
+scope : out_of_print_and_expensive, -> {
+out_of_print.where("price > 500") }
+end
+
+Passing in arguments
+Your scope can take arguments:
+class Book < ApplicationRecord
+scope :costs_more_than, -> (amount) { where("price > ?", amount) }
+end
+
+Call the scope as if  it were a class method :
+irb> Book.costs_more_than(100.10)
+However, this is just duplicating the functionality that would be provided to you by a class method.
+
+class Book < ApplicationRecord
+def self.costs_more_than(amount)
+where("price > ?", amount)
+end
+end
+
+These methods will still be accessible on the association objects:
+
+irb> autor.books.costs_more_than(100.10)
+
+using conditionals
+Your scope can utilize conditionals:
+
+class Order < ApplicationRecord 
+scope :created_before, -> (time) {where("created_at < ?", time) if time.present? }
+end
+Like the other examples, this will behave similarly to a class method.
+
+class Order < ApplicationRecord
+def self.created_before(time)
+where("created-at < ? ", time) time.present ?
+end
+end
+
+However, there is one important cavet: A scope will always return an ActiveRecord::Relation object, even if the conditional evaluates to false.
+whereas a class method, will return nil. This can cause NoMethodError when changing class methods with conditionals, if any of the conditions return false.
+
+Applying a default scope 
+If we wish for a scope to e applied across all queries to the model can use the default scope method within the model itself.
+
+class Book < ApplicationRecord
+default_scope { where (out_of_print: false) }
+ end
+ 
+When queries are executed on this model, the SQL query will now look something lik this:
+
+SELECT * FROM books WHERE (out_of_print = false) 
+If you need to do more complex things with a default scope, you can alternatively define it as a class method:
+class Book <ApplicationRecord
+def self.default_scope
+#Should return an ActiveRecord::Relation.
+end
+end
+
+The default-scope is also applied while creating/building a record when the scope arguments are given as a Hash. It is not applied while updating a record E.g.:
+
+class Book < ApplicationRecord
+default_scope {where(out_of_print: false) }
+end
+
+irb> Book.new
+=>Book id: nil, out_of_print: false>
+
+irb> Book.unscoped.new
+=> #<Book id: nil, out_of_print: nil>
+
+Be aware that, when given in the Array format, default_scope query arguments cannot be converted to a Hash fo rdefault attributes assignment E.g.:
+
+class book < ApplicationRecord
+default_scope {where ("out_of_print = ?", false) }
+end
+
+irb> Book.new
+=>  #Book id: nil, out_of_print:nil>
+
+Merging of scopes 
+Just like where clauses, scope are merged using AND conditions.
+
+Class Book < ApplicationRecord
+scope :in_print, -> {where(out_of_print; false) }
+scope :out_of_print, -> { where(out_of_print: true) }
+
+scope: recent, -> { where ('year_published >= ?',
+Date.current.year - 50 )}
+scope: old, -> [where('year_published >= ?,
+Date.current.year - 50)}
+end
+
+irb> Book.out_of_print.old
+SELECT books. * FROM books WHERE books.out_of_print = 'true' AND books.year_published < 1969
+We can mix and match scope and where conditios and the final SQL will have all conditions joined with AND 
+irb> Book.in_print.where('price < 100 )
+SELECt books.* FROM books WHERE books.out _of_print = 
+'false' AND books.price < 100
+if we do want the last where clause to win then merge can be used 
+irb> Book.in_print.merger(book.out_of_print)
+SELECT books. * FROM books WHERE books.out_of_print = 
+true
+
+One important caveat is the default_scope will be prepended in scope and where conditions
+
+class book < ApplicationRecord
+default_scope { where( 'year_published >= ?' Date.current.year - 50)}
+
+scope : in_print, -> { where(out_of_print: false) }
+scope : out_of-print, -> {where(out_of_print: true) }
+end
+
+irb> Book.all 
+SELECT books. * FROM books WHERE (year_published >= 1969)
+
+irb> Book.in_print
+SELECT books. * FROM books WHERE (year_pubilished > = 1969) AND books.out_of_print = false
+irb > Book.where("price>50" )
+SELECT books. * FROM books WHERE (year_published >= 1969) AND (price > 500 
+
+As you can see above the default_scope is being merged in both scope and where conditions 
+
+Removing All Acoping 
+If we wish to remove scoping any reason we can use the unscoped method 
+This i especially usefull if a default_scope is specified in the model and should not be applied for this particular query.
+
+Book.unscoped.load
+
+This method removes all scoping and will do a normal query on the table.
+
+irb> Book.unscoped.all 
+SELECT books. * FROM books
+
+irb> Books.where(out_of_print : true). unscoped.all
+SELECT books. * FROM books
+
+unscoped can also accept a block :
+irb> Book.unscoped { Book.out_of_print}
+SELECT books. * FROM books WHERE books.out_of_print
+
+DYNAMIC FiNDERS
+
+for every fields (also known as an attributes) you define in your table, active Rcecord provides a finder methods:
+You can specify an exclamation point(!) on the end of the dynamic finders to get them to raise an ActiveRecord::RecordNotFound error if they do not return any records, like Customer.find_by_name!("Ryan")
+
+If you want to find both by first_name and orders_count, you can chain these finders together by simply typing "and" between the fields. for example, Customer.find_by_first_name_and_orders_count("Ryan", 5)
+
+Enums 
+An Enum lets you define an Array of values for an attributes and refer to them by name. The actual value stored in the database is an integer that has ben mapped to one of the values.
+Declaring an Enum will :
+- Create scopes that can be used to find all objects that have or do not have one of the enum values
+Create an instance method that can be used to determine if an object has a particular value for the enum
+for all possible values of an enum.
+Foe example, given this enum declaration
+class Order < ApplicationRecord
+enum: Status, [:shipped, :being_packaged, :complete, :cancelled]
+end
+
+These scope are created automatically and can be used to find all objects with or without a particular value for status:
+irb> Order.shipped
+=> #<ActiveRecord::Relation> #all orders with status == :shipped
+irb> Order.not_shipped
+=> #<ActiveRecord::Relationship> #all orders with status != :shipped
+These instance method are created automatically and query whether the model has that value for the status enum:
+
+irb> order = Order.shipped.first
+irb> order.shipped? 
+=> true
+irb> order.complete?
+=> false
+
+These instances method are created automatically and will first update the value of status to the named values  and then query whether or ot the status  has been successfully set to the value:
+
+irb> order = Order.first
+irb> order.shipped!
+UPDATE "orders" SET "status" = ?, "updated_at" = ? 
+WHERE "orders"."id" = ?, [["status",0], ["updated_at", "2019-01-24 07:08:.524320"], ["id". 1]]
+=> true
+
+Full documentation about enums can be found here.
+
+
+Understanding methods chaining
+The Active Record pattern implements method chaining which allows us to use multiple Active Records methods together in a simple and strightfarward way.
+
+You can chain methods in a statements when the previous methods called returns an ActiveRecords::Relation, like all, where, and joins. Methods that return a single object( see Retrieving a single Objects Section) have to be at the end of the statement.
+
+There are some example below. THis guide won't cover all the possibilities just a few as examples. When an Active Record method is called, the query is not immediately generated and sent to  the database. The query is sent only when the data is actually needed. So each example below generates a single query.
+
+Retrievng filtered data from multiple tables
+
+Customer
+.select('customers.id, customers.last_name,
+reviews.body')
+.joins(:reviews)
+.where('reviews.created_at > ?', 1.week.ago)
+
+The result should be something like this:
+
+SELECT cusotmers.id, customers.last_name, reviews.body 
+FROM customers
+INNER JOIN reviews
+ON reviews.customer_id = customers.id
+WHERE (reviews.created_at > '2019-01-08')
+
+Retrieving specific data from multiple tables
+Book
+.select('book.id, book.title, author.first_name')
+.joins(:author)
+.find_by(title: 'Abstraction and specification in program development')
+
+THe above should generate :
+
+SELECT books.id, books.title, authors.first_name
+FROM books
+INNER JOIN authors
+ON authors.id = books.author_id
+WHERE books.title = $1 [["title", "Abstraction and SPecification in Program Development"]]
+LIMIT 1
+
+Note that if a query matches multiple records, find_by will fetch only the first one and ignore the other (see the limit 1 statementabove)
+
+Find or Build a new Object
+It's common that you need to find a record or create it if it doesn't exist . You can do that with the find_or_create_by and find_or_create_by! methods
+
+find_or_create_by
+The find_or create_by method checks whether a record with the specified attributes exists. If it doesn't then create is called let's see an example.
+
+Suppose you want to find a customer named "Andy" and if there's none, create one. you can do so by running :
+
+irb> Customer.find_or_create_by(first_name: 'Andy')
+=> #<Customer id: 5, first_name: "Andy", last_name:
+nil, title: nil, visits: 0, orders_count: nil,  lock_version: 0, created_at: "2019-01-17 07:06:45", 
+updated_at: "2019-01-17 07:06:45">
+
+The SQL generated by this method looks like this:
+
+SELECT generated by this method looks like this:
+
+SELECT * FROM customers WHERE (customers.first_name = 'Andy') LIMIT 1
+BEGIN 
+INSERT INTO customers (created_at, first_name, locked, 
+orders_count, updated_at) VALUES ('2022-08-30 05:22:57', 'Andy', NULL, '2011-08-30 05:22:57')
+COMMIT
+
+find_or_create_by return either the record that already exists or the new record. In our case, we didn't already have a customer named Andy so the record is created and returned.
+
+The new record might not be saved to the database; that depend on whether vcalidations passes or not (just like create).
+
+Suppose we want to set the 'locked' attribute to false if we we're creating a new record, but we don't want to include it in the query. So we want to find the customer named "Andy", or if that customer doesn't exist, create a customer named "andy" which is not locked. We can achieve this in two ways The first is to use create_with
+
+Customer.create_with(locked: false). find_or_create_by(first_name: 'Andy')
+
+The second way is using a block :
+Customer.find_or_create-by(first_name: 'Andy') do |c|
+c.locked = false
+end
+
+The block will only be executed if the customer is being created. The second time we run this code, the block will be ignored.
+
+find_or_create_by!
+You can also use find_or_create_by! to raise an exception if the new record is invalid. Validations are not covered on this guide, but let's assume for a momet that you temporarily add
+
+validates: orders_count, presence: true 
+to your Customer model. If you try to create a new customer without passing an orders_count, the record will be invalid and an exception will be raised:
+
+irb> Customer.find_or-create_by!(first_name: 'Andy')
+ActiveRecord:: recordInvalid : validation failed: Orders count can't be blank 
+
+find_or_initialize_by
+The find_or_initialize_by method will work just like find_or_create_by but it will call new instad of create THis mewans tht a new model instance will be created in memory but won't be saved to the database. Continuing with the find_or_create_by example, we now want the customer named 'Nina':
+
+irb> nina = Customer.find_or_intialize_by(find_name: 'Nina')
+=> #<Customer id: nil, first_name : 'Nina",
+orders_count: 0, locked: true, created_at: "2011-08030 06:09:27", updated_at: "2011-08-30 06:09:37">
+
+irb> nina.persisted?
+=> false
+
+irb> nina.new_record?
+=> true
+Becouse the object is not yet stored in the database, the SQL generated looks like this:
+
+SELECT * FROM  customers WHERE (customers.first_name = 'Nina') LIMIT 1 
+When you want to save it to the databse, just call save :
+irb> nina.save
+=> true
+Finding By SQL
+
+if you'd like to use your own SQL to find records in a table you can use find_by_sql. The find_by_sql methodd will return an array of objects even if the underlying query returns just a single record. for example you could run this query :
+irb> Customer.find_by_sql("SELECT * FROM customers INNER JOIN orders ON customers.id = orders.customers_id 
+ORDER BY customers.created_at desc")
+
+=> [#<Customer id: 1, first_name: "Lucas" ...>, #
+<customer id: 2, first_name: "Jan" ...>, ...]
+
+fin_by_sql provides you with a simple way of making custom calls to the database and retrieving instantiated objects.
+
+select_all 
+find_by_sql has a close relative called connection.select all 
+select_all will retrieve objects from the database using custom SQL just like find_by_sql but will not instantiate them. This method will return an instance of ActiveRecord::Result calss and calling to_a on this object would return you an array of hashes where each hash indicates a record.
+
+irb> Customer.connection.select_all("SELECT first_name, created_at FROM customers WHERE id = "1").to_a 
+=> [{ "first_name => "Rafael", created_at" => "2012-11-102345}, {first_name" => "Eileen", "created_at" =>"2012-12-09 34343434"}]
+
+pluck 
+pluck can be used to query single or multiple column from the underlying table of a model. It accepts a list of column names as an argument and return an array of values of the specified columns with the corresponding data type 
+
+irb>Book.where(out_of_print: true).pluck(:id)
+SELECT id FROM books WHERE out_of_print = false
+=> [1,2,3]
+
+irb> Order.distinct.pluck(:status)
+SELECT DISTINCT status FROM orders
+=> [shipped", "being_packed", "cancelled"]
+
+irb> Customer.pluck(:id, :first_name)
+SELECT customers.id, customers.first_name FROM customers
+=> [[1, "David"], [2, "Fran"], [3, "Jose"]]
+
+pluck makes it possible to replace code like:
+
+Customer.pluck(:id)
+#OR
+Customer.pluck(:id, :first_name)
+
+Unlike select, pluck directly converts a database result into a Ruby Array without constructing ActiveRecord objects. This can mean better performance for a large of frequently-run query. However, any model method overrides will not be available for Example:
+class Customer < ApplicationRecord
+def name
+"I am #{first_name}"
+end
+end
+
+irb> Customer.select(:first_name).map &:name
+=> ["I am David", "I am Jeremy", "I am Jose"]
+
+irb> Customer.pluck(:first_name)
+=> ["David", "Jeremy", "Jose"]
+
+You are not limited to quering fields from a single table, you can query multiple tables as well.
+irb> Order.joins(:customer, :books).pluck("orders.created_at, cusotmers.email, books.title")
+
+Furthermore, unlike select and other Relation scope, pluck triggers an immediate query,a nd thus cannot be chained with any further scopes, although it can work with scopes already constructed earlier:
+
+irb> Customer.pluck(:first_name).limit(1)
+NoMethodError: undefined method `limit` for #
+<Array:0x007ff34d3ad6d8>
+
+irb> Customer.limit(1).pluck(:first_name)
+=> ["david"]
+
+You should also know that using pluck will trigger eager loading if the relation object contains include values even if the eager loading is not necessary for the query for example:
+
+irb> assoc = Customer.includes(:reviews)
+irb> assoc.pluck(:id)
+SELECT "customers"."id" FROM "customers" LEFT OUTER JOIN " reviews" ON "reviews"."id" = "customers"."review_id"
+
+One way to avoid this is to unscope the ncludes:
+irb> assoc.unscope(:includes).pluck(:id)
+
+ids
+ids can be used to pluck all the IDs for the relation using the table's primary key 
+irb> Customer.ids
+SELECT id FROM customers
+class Customer <ApplicationRecord
+self.primary_key = "customer_id"
+end
+
+irb> customer.ids
+SELECT customer_id FROM customers
+
+Existence of Objects
+If you simply want to check for the existance of the object there's a method called exists? This method will query the database using the same query as find, but instead of returning an object or collection of objects it will return either true or false.
+
+Customer.exists?(1)
+The exists? method also takes multiple values, but the catch is that it will return true if any one of those records exists.
+Customer.exists?(id: [1,2,3])
+#or
+Customer.exists?(first_name: ['Jane', 'Sergei'])
+
+It's even possible to use the exists? without any argument  on a model or a relation.
+Customer.where true if there is at least one customer with the first_name 'Ryan' and false otherwise.
+Customer.exists?
+THe above returns false if the customers table is empty and true otherwise.
+You can also use any? and many? to check for existance on a model or relation. many? will use SQL count to determine if the item exists.
+#via a model
+Order.any?
+# => SELECT 1 FROM  orders LIMIT 1
+Order.many?
+# => SELECT COUNT(*) FROM (SELECT 1 FROM orders LIMIT 2)
+
+#via a named scope
+Order.shipped.any?
+# => SELECT 1 FROM orders WHERE orders.status = 0 LIMIT 1 
+
+Order.shipped.many?
+# => SELECT COUNT(*) FROM (SELECT 1 FROM orders WHERE orders.status = 0 LIMIT 2)
+
+#via a relation
+Book.where(out_of_print: true).any?
+Book.where(out_of_print: true).many?
+
+#via an association
+Customer.first.orders.any?
+Customer.first.orders.many?
+
+Calculations
+This section uses count as an example method in this preamble, but the options described apply to all sub-sections.
+
+All calculation methods work directly on a model:
+
+irb> Customer.count
+SELECT COUNT(*) FROM customers
+
+Or on a relation:
+
+irb> Customer.where(first_name; 'Ryan').count
+SELECT COUNT(*) FROM customers WHERE (first_name= 'Ryan')
+
+you can also use various finders methods on a relation for performing complex calculations: 
+irb> Customer.includes("orders").where(first_name: 'Ryan', orders: { status: 'shipped'}).count
+
+Which will execute:
+
+SELECT COUNT(DISTINCT customer.id) FROM customers
+LEFT OUTER JOIN orders On orders.customer_id = customers.id
+WHERE (customers.first_name = 'Ryan' AND orders.status = 0)
+
+assuming that orders has  enum status: [:shipped, :being_packed, :cancelled ]
+
+Count
+If you want to see how many records are in your model's table you could call Customer.count and that will return the number. If you want to be more specific and find all the customers with a title present in the dataase you can use Customer.count(:title)
+
+for Options please see the parent section Calcualations:
+
+Average
+If you want to see the average of a certain number of your tables you can call the average method on the class that relates to the table. This method call will look something like this:
+Order.average("subtotal")
+
+This will return a number (possibly a floating-point  number such as 3.14158956) representing the average value in the field
+For optiond please check the parents sections Calculations
+
+Minimum 
+if you want to find a minimum value of a field in your table you can call the minimum method on the class that relates to the table. This method call will look  something like this:
+
+Order.minimum("subtotal")
+For options please see the parent section, Calculations:
+
+Maximum
+If you want to find the maximum value of a field in your table you can call the maximum method on the class that relates to the table. This method call will look somethinf like this:
+
+Order.maximum("subtotal")
+for option please see the parents section  Calcultions
+
+Running EXPLAIN
+You can explain on a relation EXPLAIN output varies for each database.
+
+For Example, running 
+
+Customer.where(id: 1).joins(:orders).explain
+may yield
+
+under MySQL and MariaDB
+
+Active Record performs a pretty printing that emulates that of the corresponding database shell. So, the same query running with the postgreSQL adapter would yield instead 
+
+Eager loading may trigger more than obe query under the hood, and sosme queries may need the result of previous ones. Because of that explain actually executes the Query, and then asks for the query plans. For example,
+
+Customer.where(id: 1). includes(:orders).explain
+may yield this for MySQL and MariaDB
+
+
+interpreting EXPLAIN 
+INTERPRETING of the output of EXPLAIN is beyound the scope OF this guide. THe following pointers may be helpful:
+
+SQLite3 : EXLPLAIN QUERY PLAN
+MySQL: EXPLAIN Output Format
+MariaDB EXPLAIN
+PostgreSQL : USING EXPLAIN
+
+
+
