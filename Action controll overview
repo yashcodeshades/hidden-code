@@ -684,6 +684,185 @@ end.render
 end
 end
 
-The download_pdf action in the example above will call a private method which actually generates the PDF document and returns it as a string. This will then be streamed to the client as a file download, and a filename
+The download_pdf action in the example above will call a private method which actually generates the PDF document and returns it as a string. This will then be streamed to the client as a file download, and a filenamewill be suggested to the user. Sometimes when streaming files to the user you may not want them to download the file. Take images, for example which can be embedded into html pages To tell the browser a file not meant to be downloaded you can set the :disposition optoin to "inline" The Opposite and default value for this option is attachment"
+
+Sending files 
+If you want to send a file that already exists on a disk, uses the send_file method.
+
+class ClientsController < ApplicationController 
+
+#Stream a file that has already been generated and stored on disc.
+def download_pdf
+slient = Client.find(params[:id])
+send_file("#{Rails.root}/files/clients/#
+{client.id}.pdf",
+filename: "#{client.name}.pdf",
+type: "application/pdf")
+end
+end
+
+This ill read and stream the file 4 kb at the time avoiding loading the entire file into memory at once. You can turn off streaming with the :stream option or adjust the block size with the :buffer_size option.
+
+If :type is not specified, it will be guessed from the file eextension specified in :filename. If the content-type is not registered for the extension.
+application/octet-stream will be used.
+
+Be careful when using data comming from the client (params, cookies, etc.) to locate the file  on disc, as this is a security risk that might allow someone to gain access to files they are not meant to. 
+it is not recommended that you stream static files through Rails if you ccan instead keep them in apublic folder on your web server. It is much more efficient to let the user download the file directly using Apache or another web esrver, keeping the request from unnecessary going through the whole Rails stack.
+
+Restful download 
+While send_data works just fine, if you are creating a RESTful application having seperate actions for file downloads is usually not necessary. In REST terminology, the PDF file from the example above can be considered just another representation of the client resource. Rails provides an easy and quite sleek way of doing "RESTful downloads". Here's how you can rewrite the example so that the pdf download is a part of the show action without any streaming 
+
+class ClientsController < ApplicationController
+#The user can request to receive this resource as HTML or PDF
+def shsow 
+@client = Client.find(params[:id])
+
+respond_to do |format|
+format.html
+format.pdf { render pdf: generate_pdf(@client) }
+end
+end
+end
+
+For this example to work you have to add the PDF MIME type  to rails, this can be done by adding the following line to the file
+config/initializers/mime_types.rb:
+mime::Type.register "application/pdf", :pdf
+
+Configuration files are not reloaded on each request, so you have to restart the server for their changes to take effect.
+
+Now the user can request to get a PDF version of a client just by adding ".pf" to the URL:
+
+GET/ clients/1.pdf
+
+Live Streaming of arbitrary Data
+Rails allows you to  stream more than just files. In fact, you can stream anything you would like in response object. The ActionController::Live module allows you to create a persistemt connection with a browser Using this module, you will be able to send arbitrary data to the browser at specific points in time.
+
+Incorporating Live Streaming
+Including ActionController::Live inside of your controller class will provide all action inside the controller the ability to stream data. You can mix in the module like so: 
+
+class MyController < ActionController::Base
+include ActionController::Live
+
+def stream
+response.headers ['Content-Type'] = 'text/event-stream'
+100.times {
+rsponse.stream.write "hello world\n"
+sleep 1
+}
+ensure
+response.stream.close
+end
+end
+
+The above code will keep a persistentconnection with the browser and send 100 message of "helo world\n", each one second apart. 
+
+There are souple of things to notice in the above example. We need to make sure to close the response stream. Forgettingto close the stream will leave the socket open forever. We also have to set the content type to text/event-stream before we write to the response stream. This is because header cannot be written after the response has been commited (when response.commited? returns a truthy value), which occurs when you write or commit the response stream.
+
+Example Usage
+Lets suppose that you were making a karaoke machine, and a user wants to get the lyricists for a particular song. Each Sond has a particular number of lines and each line takes time num_beats to finish singing.
+
+If we ant to return the lyrics in Karaoke fashion(only sending the line when the singer has finished the previous line), then we could use Action Controller::Live as follows:
+
+class LyricsController <ActiveController::Base 
+include ActionController::Live 
+
+def show
+response.headers['Content-Type'] = 'text/event- stream'
+song = Song.find(params[:id])
+
+The above code sends the next line after the singer has completed the previous line.
+
+Streaming Considerations
+Streaming arbitrary data is an extremely powerful tool. As shown in the previous examples, you can choose when and what to send across a response  stream. However you should also note the following things:
+
+Each response stream creates a new thread and copies over the thread local variables from the original thread. Having too many thread local variables can negatively impact performance. Similarly a large number of threads can also hinder performance.
+
+failing to close the response stream will leave the corresponding socket open forever Make sure to call cose whenever you are using a response stream.
+WEBrick servers buffer all responses, and so including ActionCController::Live will not work. You must use a web service which does not automatically buffer responses.
+
+Log Filtering
+Rails keeps a log file for each environment in the log folder. These are extremely useful when debeugging what's actually going on in your application, but in a live application you may not want everybit of information to be stored in the log file.
+
+Parameters filtering 
+You can filter out sensitive request parameters from your log files by appending them to config.filter parameters in the application configuration. these parameters will be marked [FILTERED] in the log.
+configg.filter_parameters << :passsword
+
+Provided parameters will be filtered out by partial matching regular expression, Rails add a list of default filters, including :passw:secret, and :token, in the appropriate initializer (initializers/filter_parameter_logging.rb) to handle typical application parameters like password, password_configuration and my_token.
+
+Redirects filtering 
+Sometimes it's desirable to filter out from log files some sensitive locations your application is rdirecting to. You can do that by using the config.filter_redirect configure option:
+
+config.filter_redirect<< 's3.amazon.com'
+
+You can set it to a string a regexp, or n array of both.
+
+config.filter_redirect.concat ['s3.amazonaws.com', /private_path/]
+
+Matching URLs will be marked as '[FILTERED]'.
+
+RESCUE
+Most likely your application is going to contain bugs or otherwise throw an exception that needs to be handled for example if the user follows a link to a resource that no longer exists in the database, active Record will throw th active record :: Record Not found exception
+
+Rails default exception handling displays a "500 Server Error" message for all exceptions. If the request was made locally a nice traceback and some added information gets displayed, so you can figure out what went wrong and deal with it. If the request was remote Rails will just display a simple "500 Server Error" message to the user, or a "404 not foiund" if there was a routing error, or a record could not be found. Sometimes you might want to customize how these errors are caugh and how they're displayed to the user. There are several levels of exception handling available in a rails application:
+
+The Default 500 and 404 Templates
+By defaults, in the production environment the application will render either a 404, or a 500 error message in the development environment all unhandled exceptions are simply raised. These message are contained in static HTML files in the public folder, in 404.html and 500.html respectively you can customize these files to add some extra information and style, but remember that they are static HTML you can't use ERB SCSS, CoffeeScript, or layouts for them.
+
+rescue_form
+If you want to do something a bit more ellaborate when catching errors, you can use rescue from which handles exceptions of a certain type (or multiple types0 in an entire controller and its subclasses.
+
+When an exception occurs which is caught by a rescue_from directive, the exception object is passed to the handler. The handler can be method or a proc object passed to the :with option You can also use a block directly instead of an explicit Proc object.
+
+Here's how you can use rescue_from to intercept all ActiveRecord::RecordNotFound errors and do somethingwith them.
+
+class ApplicationController <ActionController::Base
+rescue_from ActiveRecord::RecordNotFound, with:
+:record_not_found
+
+private
+def record_not_found
+render plain: "404 Not Found", status: 404
+end
+end
+
+Of course this example is anything but elaborate and doesn't improve on the default exception handling at all but once you can catch all those exceptions you're free to do whatever you want tith them For example, you could create custom exception classes that will be thrown when a user doesn't have access to a certain section of your application:
+
+class ApplicationController < ActionController::Base 
+rescue_from User:: NotAuthorized, with:
+"user_not_autorized
+
+private
+defuser_not_authorized
+flash[:error] = "You don't have access to this section."
+
+redirect_back(fallback_location: root_path
+end
+end
+
+class ClientsController < ApplicationController
+#Check that the user has the right authorization to access clients.
+
+before_action: check_authorization
+#note how the actions don't have to worry about all the auth stuff.
+
+def edit @client = Client.find(params[:id]}
+end
+
+private
+# If the user is not authorized, hust throw the exception.
+def check_authorization
+raise User::NotAuthorized unless
+current_user.admin?
+end
+end
+
+Using rescue_from with Exception or StandardError would cause serious side-effects as it prevents Rails from handling exceptions properly. As such, it isnot recommended to do so unless there is a strong reason.
+
+When running in the production environment, all Active record::RecordNotFound errors render the 404 error page Unless you need a custom behaviour you don't need to handle this.
+
+Certain exception are only rescuable from the ApplicationController classs as they are raised before the controller gets initialized, and the action gets executed.
+
+force HTTPS protocol 
+if you'd like to ensure that communication to yout controller is only possible via https, yyou should do so by enabling the ActionDispatch::SSL middleware via config.force ssl in your environment configuration.
 
 
