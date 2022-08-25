@@ -1,0 +1,689 @@
+What does a controller do?
+Action Controller is the C in MVC After the routes has determined which controller to use for a request, the controller is responsible for making sence of the request and producing the appropriate output. Luckily, Action Controller does most of the groundwork for you and uses smart conventions to make thid=s as straightfarward as possibe.
+
+For most conventional RESTful applications, the controller will recieve the request (this is invisible to you as the developer), fetch or save data from a model, and uses a view to create HTML output, If your controller needs to do things a little different, that's not a problem, this is just the most common way forfor a controller to work, 
+
+A controller can thus be though of as a middleman between models and views. It makes the model data available to the view, It makesthe model data available to the view, so it can display that data to the user, and saves or update user data to the model.
+For more details on the routing process, see Rails Routing from the outside In, 
+
+Controller Naming Convention
+
+The naming convention of controllers in rails favor pluralisation of the last word in the controller's name, although it is not strictly required(eg. ApplicationController). For exampl, ClientsController is preferable to ClientController, SiteAdminController is preferable to siteAdminController or SitesAdminsController, and so on.
+
+Following this convention will allow you to usse the default route generators (eg. resources etc) without needing to qualify each :path or :controller, and will keep named route helpers usage consistent throughout your application. See Layout and rendering guide
+
+The controller naming convention differs from the naming convention of model, which are expected to be named in singular form.
+
+Method and Actions A controller is a ruby class inherits from ApplicationController and has methods just like any other class. When your application receives a request , the routing will determine which controller and action to run, then Rails creates an instance of that controller and runs the method with the same name as the action.
+class ClientsController < ApplicationController
+def new end
+end
+
+As an example, if a user goes to/ clients.new in your application to add a new client, rails will create an instance of ClientsController and call its new method. note that the empty method from the example above would work fine because Rails will by default render the new.html.erb view unless the action says otherwise. By creating a new Client, the new method can make a @client instance variable accessing in the view:
+
+def new
+@client= Client.new
+end
+
+The Layouts and rendering Guide explains this in more detail.
+ApplicationController inherits from ActionController::Base, which defines a number of helpful methods, This guide will cover some of these, but if you're curious to see what's in there, you can see all of them in the API documentation or in the source itself 
+Only public methods are callable as action. It is a bet practice to lower the visibility of methods (with private or protected) which are not intended to be actions, like auxiliary methods or filters.
+
+Some method names are reserved by Action Controller. Accidentally redefining then as actions, or even as auxiliary methods, could result in SystemStackError. If you limit your controllers to only Restful Resource Routing actions you should not need to worry about this.
+
+If you must use a reserved method as an action name, one warkaround is to use a custom route to map the reserved method name to your non-reserved action method.
+
+Parameters You will probably want to access data sent in by the user or other parameters in your controller actions. There are two kinds of parameters possible in a web application. The first parameters that are sent as part of the URL, called query string parameters. The query string is everything after "?" in the URL, called query string parameters is usually referred to as POST data. This information usually comes from an HTML form which has been filled in by the user. It's called POST data because it can only be sent as part of an HTTP POST request. Rails does not make any distinction between query string parameters and POST parameters, and both are available in the params hash in you  controller:
+
+class ClientsController < ApplicationController
+#This action uses query string parameters because it gets run 
+
+#by an HTTP GET request, but this does not make any difference
+#to how the parameters are accessed. The URL for #this action would look like this to list activated
+#clients: /client? status = activated
+def index 
+if params[:status] == "activated"
+@clients = Client.activeted
+else
+@clients = Client.inactivated
+end
+end
+
+#This action uses POST parameters.They are most likely coming
+#from an HTML form that the user has submitted. The URL for 
+#this RESTful request body.
+def create
+@client = Client.new(params[:client])
+if @client.save
+redirect_to @client
+else
+#This line ovrrides the defazult rendering behaviour, which
+#would have been to render the "cretae" view
+render "new"
+end
+end
+end
+
+Hash and array parameters
+
+The params hash is not limited to one-dimensional leys and values It can contain nested arrays and hashes To send an array append an empty pair of square brackets "[]" to the keys name:
+
+GET/clients?ids[]=1&ids[]=2&ids[]=3
+
+The actual URL in this example will be encoded as "/clients? ids...........
+
+The value of params[:ids] will now be  will now be ["1", "2", "3"]. Note that parameter values are always strings; Rails does not attempt to guess or cast the type.
+
+Values such as [nil] or [nil, nil,...] in params are replaces with [] for security resons by default. See Security Guide for movies information.
+
+To send a hash, you include the key name inside the  the brackets:
+
+when this form is submitterd, the value of params[:client] will be {"name" => "Acme", "phone" => "12345", "address" => { "postcode" => "12345", "city" => "carrot City" }}. Note the nested hash in params[:client][:address]. 
+
+The params object acts like a Hash, but lets you use symbols and strings interchangeably as keys.
+
+JSON parameters
+If you writing a web services application, you might find yourself more comfortable accepting parameters in JSON format. I the "Content-type" header of your request is set "application/json", Rails will automatically load your parameters into the params hash, which you can access as you would normally.
+
+So for example, if you, if you are sending this JSON content:
+
+Your controller will receive params[:company] as {"name" => "acme", "address" => "123 carrot Street" }.
+
+Also, if you've turned on config.wrap_parameters in your initializer or called wrap parameters in your controller, you can safety omit the root element in the JSON parameters. In this case, the parameters will be cloned and wrapped with a key chosen based on your controller's name. So the above JSON request can be written as: 
+{"name": "acme", "address": "123 Carrot Street" }
+And assuming that you're sending the data to CompaniesController, it would then be wrapped within the :company key like this:
+
+{name: "acme", address: "123 Carrot Street", company: {
+name: "acme", address: "123 Carrot Sreet" } }
+
+You can customize the name of the key or specific parameters you wantto wrop by consulting the API documentation
+
+Support for parsing XML parameters has been extracted into a gem named actionpack-xml_parser.
+Routing Parameters
+The params hash will always contain the :controller and :action key, but you should use the methods controller name and action name instead to access these values. Any other parameters defined by the routing. such as :id, will also be available. As an example, consider a listing of client where the list can show either active or inactive clients. We can add a route that capture the :status parameters in a "pretty" URL:
+
+get '/clients/:status', to: 'clients#index', foo: 'bar'
+
+In this case, when a user opens the URL /clients/active, params[:status] will be set to "active". When this route is used, params[:foo] will also be set to "bar", as if it were passed in the query string. Your controller will also receive params[:action] as "index" and params[:controller] as "clients".
+
+default_url_options
+You can set global parameters for URL generation by defining a method called default_url_options in your controllerr. Such a method must return a hash with the desired defaults, whose keys must be symbols:
+
+class ApplicationController < ActionController::Base
+def default_url_options
+{ locale : I18n.locate }
+end
+end
+
+These options will be used as a starting point when generating URLs, so it's possible they'll be overridden by the options passed to url_for calls.
+
+If you define default_url_options in ApplicationController, as in the example above, these defaults will be used for all URL generation. The method can also be defined in a specific controller, in which ase it only affectd URLs generated there.
+
+In a given request, the method is not actually called for every single generatedc URL For performance reasons, the returned hash is cached, and there is at most one invocation per request.
+
+Strong Parameters
+With strong parameters, Action Controller parameters are forbidden to be used in Active Model mass assignments untill they have been permitted. This means that you'll have to make a conscious decision about which attributes to permit for mass update. This is a better security practice to help prevent accidentally allowing users to update sensitive model attributes.
+
+In addition, parameters can be marked as required and will flow through a predefined raise/rescue flow that will result in a 400 Bad Request being returned if not all required parameters are passed in.
+
+class PeopleController < ActionController::Base
+#Tis will raise an 
+ActiveModel:: ForbiddenAttributeError Exception
+#because it's using mass assignment without an explicit permit
+#step.
+def create
+Person.create(params[:person])
+end
+
+#This will pass with flying colors as long as there's a person key 
+#in the parameters. otherwise it'll raise an 
+#ActionController::Base and turned into a 4000 Bad
+#request error
+def update
+person= current_account.people.find(params[:id])
+person.update!(person_params)
+redirect_to person
+end
+
+private
+#Using a private method to encapsulate the permissible parameters
+#is just a good pattern since you'll be able to reuse the same 
+#permit list between create and update, Also, you can specialize
+#this method with per- user checking of permissible attributes.
+def person_params
+params.require(:person).permit(:name, :age)
+end
+end
+
+Permitted Scalar Values
+Calling permit like:
+params.permit(:id)
+permits the specified keys(:id) for inclusion if it appears in params and it has a permitted scalar value associated. Otherwise, the key is going to to be filtered out, so arrays, hashes, or any other objects cannot be injected.
+
+The permitted scalar types are String, NilClass, Numeric, TrueClass, FalseClass, Date, Time, DateTime, StringIO, IO, ActionDispatch::Http::UploadedFile, and 
+Rack::Test::UploadedFile
+
+To declare tat the calue in params must be array of permitted scalar values, map the key to an empty array:
+
+params.permit(id:[])
+Sometimes it is not possible or convinient to declare the valid keys of a hash parameter or its internal structure. Just map to an empty hash:
+
+params.permit(preferences: {})
+but be careful because this opens the door to arbitrary input. In this cae permitensure values in the returned structure and permitted scalars and filter out anything else.
+
+To permit an entire hash of parameters, the permit! method can be used:
+params.require(:log_entry).permit!
+This marks the :log_entry parameters hash and any sub-hash of it as permitted and does not check for permitterd scalars, anything is accepted. Extrme care should be taken when using permit! as it will allow current and future model attributesto be mass-assigned.
+
+Nested Parameters
+You can also use permit on nested parameters, like :
+
+params.permit(:name, { emails: []},
+friends: [ :name,
+{ family: [:name], hobbies: [] } ] )
+
+This declaration permits the name, email and friends attrinutes. It is expected that emails will be an array of permitter scalar values, and that friends will be an array of resources with specific attributes; they should have a name attribute (any permitted scalar values allowed), a hobbies attributes as an array of permitted scalar values, and a family attribute which is restricted to having a name (any permitted scalar values allowed here, too).
+
+more Examples
+You may want to also use the permitted attributes in you new action. This raises the problem that you can't use required on the root key because, normally it does not exist when calling new:
+
+#using 'fetch' you can supply a defult and use
+#the strong parameters API from there.
+params.fetch(:blog, {}).permit(:title, :author)
+
+The model class method accepts_nested_attributes_for allows you to update and destroy associated records. This is based on the id and _destroy parameters:
+
+#permit :id and :destroy 
+params.require(:author).permit(:name, books_attributes: [:title, :id, :_destroy])
+Hashes with integer keys are treated differently, and you can declare the attributes as if they were direct children. You get these kinds of parameters when you use accepts_nested_attributes_for in combination with a has_many association:
+# To permit the following data:
+# {"book" => {"title" => "Some Book",  "chapters_attributes" => { "1" => {"title" => "first Chapter"},
+#"2" => {"title"
+=> "Second Chapter"}}}}
+params.require(:book).permit(:title, chapters_attributes: [:title])
+
+Imagine a scenariowhere you have parameters representing a product name, and a hash of arbitrary data associated with that product, and you want to permit the product name attributes and also the whole data hash:
+def product_params
+params.require(:product).permit(:name, data: {})
+end
+
+Outside the scope of Strong parameters
+The strong parameter API was designed with the most common use cases in minf. It is not meant as a silver bullet to handle all of your parameter filtering problems.
+However, you can easily mix the API with your own code to adapt to your situation.
+
+Session
+
+Your application has a session for each user in which you can store small amounts of data that will be persisted between requests. The session is only available in the controller and the view and can use one of several of differnt storage mechanism 
+ActionDispatch::Session::CookieStore: Stores everything on the client 
+ActionDispatch::Session::CacheStore - Stores the data in the Rails cache.
+
+Actiondispatch::Session::MemChacheStore - Stores the data in a memcached cluster (this is a legacy implementaion, consider using CacheStores instead).
+
+All session stores use a cookie to store a unique ID for each session (you must use a cookieee. rails will not allow you to pass the session ID in the URL as this is less secure).
+
+For most  stores, this ID is used to look up th session data on the server, e.g. in a database table There is one exception and that is the default and recommended session store - the CookieStore - Which stores all session data in the cookie itself (the ID is still available to you if you need it) This has the advantages pf being very lightweight,and it require zero setup in a new applicatoin to use the session The cookie data is cryptographically signed to make it tamper-proof. And it is also encrypted so anyone with access to it can't read its contents, (rails will not accept it if it has been edited)
+
+The CookieStore can store around 4 kB of data - much less than the others - but this is usually enough. Storing large amounts of data in the session is discouraged no matter which session store yourapplication uses. You should especially avoid storing complex objects (such as model instances) in the session as the server might not be able to reassemble them between requests, which will result in an error.
+
+If your user sessions don't store critical data or don't need to be around for long periods (for instance if you use the flash messaging) you can consider using ActionDispatch::Session::CacheStore. This will store sessions using the cache implementation you have configured foryour application. The advantages of this is that you can use your existing cache infrastructurefor storing sessions without requiring any additional setup or administraton. The downside of course is that the session will be ephemeral and could disappear at any time.
+
+Read more abu session storage in the Security Guide.
+
+If you need a ifferent session storage mechanism, you can change it in a initializer:
+
+#use the database for sessions instead of the cookie-based default, 
+#which shouldn't be used to store highly confidential information
+#(create the session table with :rails g active_record:session_migration")
+#Rails.application.config.session_store
+:active_record_store
+
+Rails setup a session key (the name of the cookie) when signing the session data. these can also be changed in an initializer:
+
+# be sure to restart your server when you modify this file.
+Rails.application.config.session_store :cookie_store,
+key: '_your_app_session'
+
+You can also pass a :domain key and specify the domain name for the cookie:
+
+#Be sure to restart your server when you modiify this file.
+Rails.application.config.session_store: Cookie_store,
+key: '_your_app_session', domain: ".example.com"
+
+rails sets up (for the CookieStore) a secret key used for signing the sessoin data in config/credentials.yml.enc. This can be changed with bin/rails credentials:edit.
+
+#aws:
+# access_key_id: 123
+#secret_access_ key: 345
+#used as the base secret for all MessageVerifiers in rail, including the one protecting cookies.
+secret_key_base:429f...
+changing the secret_key_base when using the CookieStore will invalidate all existing sessions.
+
+Accessing the session 
+In your controller, you can access the session through the session instance method.
+
+Sessions are lazily loaded. If you don't access sessions in your action' code, they will not be loaded. Hence you will never need to disable sessions, just not accessing them will do the job,
+
+Session value are stored using key/value pairs llike a hash:
+
+class ApplicationController < ActionControler::Base
+
+private
+
+#find the User with the ID stored in the session with the key 
+# :current_user_id this is a common way to handle user login in 
+#a Rails application; logging in sets the session value out removes it.
+def current_user
+@_current_user ||= session[:current_user_id] &&
+User.find_by(id: session[:current_user_id])
+end
+end
+To store somethinf in the session justs assign it to the key like a hash:
+
+class LoginsController < ApplicationController
+##"create" a login, aka "log the user in"
+def create
+if user = User.authenticate(params[:username], params[:password])
+# Save the user ID in the session so it can be used in 
+#subsequent requests
+session[:current_user_id] = user.id
+redirect_to root_url
+end
+end
+end
+
+To remove something from the session, delete the key/value pair:
+
+class LoginController < ApplicationController
+#"Delete" a login, aka "log the user out"
+def destroy
+#session.delete(:current_user_id)
+#Clear the memoized current User
+@_current_user = nil
+redirect_to root_url
+end
+end
+
+To reset the entire session use reset session
+
+The Flash
+The flash is a special part of the session which is cleared with each request This means that values stored there will only be available in the next request, which is useful for passing error message, etc.
+The flash is accessible via the flash method like the esssion the flash is represented as a hash
+
+Lets use the act of logging out as an example The controller can send a message which will be displayede tot eh user on the next request :
+
+clas LoginControler < ApplicationController
+def destroy
+session.delete(:current_user_id)
+flash[:notice] = "You have successfully logged out."
+redirect_to root_url
+end
+end
+
+Note that it is also possible to assign a flash messae as part of the redirection. You can assign :notice, :alert or the general- pourpose :flash:
+
+redirect_to_ root_url, notice: "you have successfully logged out."
+redirect_to root_url, alert: "You're stuck here!"
+redirect_to root_url, flash: {referral_code: 1234 }
+
+The destroy action redirects to the application's root_url where the message will be displayed. Note that it's entirely up to the next action to decide what, if anything it will do with what the previous action puts in the flash. It's conventional to display any error alerts or notice from he flash in the application's layout :
+
+<html>
+m!q-- <head/> -->
+<body>
+<% flash.each do |name, msg| -%>
+<%= content_tag :div, msg, class: name %>
+< end -%>
+</body>
+</html>
+
+htis ways if an action sets a notice or an alert message, the layout will display it automatically.
+
+You can pass anything that the session can store you're not limited to notices and alerts:
+
+<% if flash[:just_signed_up] %
+<p class= "welcome"> Welcome to our site !</p>
+<% end %>
+
+If you want a flash to be carried over to another request, use flash.keep:
+
+class MainController < ApplicationController
+#let's say this action corresponds to root_url, but you want
+
+#all requests here to be redirected to UsersController#index.
+#If an action sets the flash and redirects here, the values 
+#would normally be lost when anoter redirect happens, but you 
+#can use 'keep' to make it persist for another request.
+def index
+#will persist all flash values. 
+flash.keep
+
+# You can also use a key to keep only some kind of value.
+
+#flash.keep(:notice)
+redirect_to users_url
+end
+end
+
+flash.now 
+By default, adding values to the flash will make them available to the next request, bu sometimes you may want to accesss those values in the same request For example, if the create action fails to save a resource, and you render new template directly that's not going to result  in a new reques, but you may still want to display a message using the flash. to do this, you can use flash.now in the same way you use the normal flash;
+class ClientsController < ApplicationController
+def create 
+@client = Client.new(client_params)
+if @client.save
+#...
+else
+flash.now[:error] = "could not save client"
+render action: "new"
+end
+end
+end
+
+Cookies
+Your application can store small amounts of data on the client - called cookies - that will be persisted across requests and even sessions. Rails provides easy access to cookies via the cookies method, which - much like the session - works like a hash:
+
+class CommentsController < ApplicationController
+def new
+#Auto-fill the commenter's name if it has been stores in a cookie
+@comment = Comment.new(author: cookies[:commenter_name])
+end
+
+def create
+@comment = Comment.new(comment_params)
+if @comment.save
+flash[:notice] = "Thanks for your comment!"
+if params[:remember_name]
+#remember the commenter's name.
+cookies[:commenter_name] = @comment.author
+else
+# Delete cookie for the commenter's name cookie, if any.
+
+cookie.delete(:commenter_name)
+end
+redirect_to @comment.article
+else
+render action: "new"
+end
+end
+end
+
+Note that while for session values you can set the keys to nil, to delete a cookie value you should use cookies.delete(:key).
+Rails also provides a signed cookie jar and an encrypte cookie jar for storing sensitive data. The signed cookie jar appends a cryptographic signature on the cookie values to protect their integrity. The encrypted cookie jar encrypts the values in addition to signing them, so that they cannot be read by the end-user. Refer to the API deocumentation for more details.
+
+These special cookie jars use a serializer to serialize the assigned values into strings and deserializes them into Ruby objects on read.
+
+You can specify what serializer to use:
+
+Rails. application.config.action_dispatch.cookies_serializer = :json
+The default serializer for new applications is :json For compatibility with old applications with existing cookies, :marshal is used when serializzer option is not specified.
+
+You may also set this option to:hybrid, in which case Rails would transparently deserialize existing (marshal- serialized) cookies on reed and re-write them in the JSON format. This is usful for migrating existing applications to the :json
+serializer.
+
+It is also possible to pass a custom serializer that responds to load and dump:
+
+Rails.application.config.action_dispatch.cookies_serializer = MyCustomeSerializer
+
+When using the :json or :hybrid serializer, you should beware that not all Ruby objects can be serialized as JSON for example, Date and Time objects will be serialized as strings, and Hashes will have their keys stringified.
+
+class CookiesController < ApplicationController
+def set_cookie
+cookies.encrypted[:expiration_date] = Date.tomorrow
+# => Thu, 20 Mar 2014
+redirect_to action: 'read_cookie'
+end
+
+def read_cookie
+cookies.encrypted[:expiration_date] # => "2014-03-20"
+end
+end
+
+It's advisable that you only store simple data (strings and numbers) in cookies. If you have to store complex objects, you would need to handle the conversion manually when reading the value on subsequent request 
+
+If you use the cookie session store, this would apply to the session and flash hash as well.
+
+Rendering XML and JSON data
+Action Controller make it extremely easy to render XML or JSON data. If you've generated a controller using scaffolding, it would look something like this:
+
+class UserController < ApplicationController
+def index
+@users = User.all
+respond_to do |format|
+format.html #index.html.erb
+format.xml { render xml: @users }
+format.json { render json: @users }
+end
+end
+end
+
+You may notice in the above code that we're using render xml: @users, not render xml: @users.to_xml. If the objects is not a string, then Rails will automatically inoke to_xml for us.
+
+Filters
+filters are methods that are run "before", "after" or "around" a controller action.
+Filters are inherited so if you set a filter on ApplicationController it will be run on evcery controller in your application.
+
+"before" filters are registered via before action They may halt the request cycle A common "before" filter is one whivh required that a user is logged in for an action to be run You can dfine the filter method this way.
+
+class ApplicationController < ActionController::Base
+before_action :require_login
+
+private
+
+def require_login
+unless logged_in?
+flash[:error] = "You must be logged in to access this session"
+redirect_to_new_login_url #halts request cycle
+end
+end
+end
+
+The method simly stores an error message in the flash and redirects to the login form if the user is not logged in. If a "before" filter renders or redirects, the action will not run. If there are additional filters scheduled to run after that filter, they are also cancelled.
+
+In this example, the filter is added to ApplicationController and thus all controllers in the application inherit it. THis will make everything in the application require the user to be logged in to use it, For obvious reasons (the user wouldn't be able to log in in the first place!) not all controllers or actions should reqauire this. You can prevent this filter from running before particular actions wit skip before action:
+
+class LoginController <ApplicationController 
+skip_beforre_action :require_login, only: [:new, :create]
+end
+
+Now, the LoginsController's new and create actions will work as before without requiring the user to be logged in The :only option is used to skip this filter only for these actions, and there is also an :except option which will workd the other way. These options can be used when adding filters too, so you can add a filter which only runs for selected actions in the first place.
+
+Calling the same filter multiple times with different options will not work, since the last filter definition will overwrite the previous ones.
+
+After Filters and Around Filters
+In addition to "before" filters, you can also run literals after an action has been executed, or noth before and after.
+"after" filter are rgisters via after action. they are similar to "before" filters, but because the action has already been run they have acccess to the response data that's about to be sent to the client. Obviously, after filters cannot stop the action from running Please note that "after" filters are executed only after a successful action, but ot when an exception is raised in the request sycle.
+
+"around" filters are registered via around action They are responsible for running their associated actions by yielding, similar to how Rack middlewares work.
+
+For Example, in a website where changes have an approval workflow, n administrator could preview them easily by applying them within a transaction:
+
+class ChangesController < ApplicationController 
+around_action : wrap_in_transactions, only: :show
+
+private
+
+def wrap_in_transaction
+ActiveRecord::Base.transaction do
+begin
+yield
+ensure
+raise ActiveRecord::Rollback
+end
+end
+end
+end
+
+Note that an "around" filter also wraps rendering. In particular , in this example above if the view itself reads from the databse (e.g. via a scope ), it wwill do so within the transaction and thus present the data to preview.
+
+You can choose not to yield and build the response yourself, in which case the action will not be run.
+
+Other Ways to use Filters 
+While the most common way to use filters is by creating private methods and using before_action, after_action, or around_action to add them, there are two other ways to do the same thing  
+The first is to use a block directly with the *_action methods. The block receives the xontroller as an argument. The require_login filter from above could be rewritten to use a block:
+
+class ApplicationController < ActionController::Base
+before_action do |controller|
+unless controller.send(:logged_in?)
+flash[:error] = "You must be looged in to access this section"
+redirect_to new_login_url
+end
+end
+end
+
+Note that the filter in this case uses send because the logged_in? method is private, and the filter doesnot run in the scope of the controller This is not the recommended way to implement this particular filter, but in simpler cases, it might be usual.
+Specifically for around_action { |_controller, action| time(&action) }
+The second way is to use a class (actually, any object that responds to the right methods will do) handle the filtering. This is useful in cases that are more complec and cnnot be implements in a readable and reusable way using the two other methods. As an exampl, you could rewrite the login filter again to use a class:
+
+class ApplicationController < ActionController ::Base
+before_action LoginFilter
+end
+
+class LoginFilter
+def self.before(controller)
+unless controller.send(:logged_in?)
+controller.flsh[:error] = "You must be logged in to access this section"
+controller.redirect_to controller.new_login_url
+end
+end
+end
+
+Again this is not an ideal example for this filter, because it's not run in the scope of the controller ut gets the controller passed as an argument. The filter clss must implement a metho with the same name as the filter, so for the before_action filter, the class must implement a before method and so on. The around method must yield to execute the action 
+Request Forgery Protection
+Core-site request forgery is a type of attack in which a dite tricks a user into making requests on another site, possibly adding, modifying, or deleting data on that site without the user's knowledge or permission.
+
+The first step to avoid  this is to make sure all  "destructive" actions (create, update, and destroy) can only be accessed with non-GET requests. If you're following RESTful conventions you're already doing this However a malicious site can still send a non-GET request to your site quite easily and that's where the request forgery protection comes in. As the name says, it protects from forged requests.
+
+The way this is done is to add a non-guessable token is only to know to your sever to each request. This way, if a request comes in without the proper token, it will be denied access.
+
+If you generate a form like this:
+
+<%= form_with model:@user do |form| %>
+<%= form.text_field :username %>
+<%= form.text_field :password %>
+<% end %>
+
+You will see how the token gets added as a hidden fields:
+
+<form accept-sharset = "UTF-8" action= "/users/1"
+method="post">
+<input type = "hidden" 
+value = "23rt09iju23e"
+name= "authenticity_token"/>
+<!-- fields -->
+</form>
+
+Rails adds this token to every form that's generating using the form helper so most of the time you don't have to worry about it. If you're writting a form manually or need to add the token for another reason, it's available through the method form_authenticity_token:
+
+The form_authenticity_token generates a valid authentication token That's useful in places where Rails does not add it automatically like in custom Ajax calls. 
+
+The Security Guide has more about this and a lot of other security-related issues that you should be aware of when developing a web application.
+
+The Request and response object 
+In every controller there are two acessor methods pointing to the request and the response objects associatede with the request cycle that is currently in execution the request method contains an instance of ActionDispatch:: Request and the response method return a response object representing what is going to be sent back to the client.
+
+the request object the request obbject ontains a lot of useful information about the request comming in from the client to get a full time list of the available methods refer to the rails API documentations and Rak documentation Among the properties that you can access on the object are:
+
+
+path_parameters, query_parameters and request_parameter
+Rails collects all of the parameters sent along with the request in the params hash, 
+whether they are sint as part of the query string, or the post body. The request object has three accessors that give you access to these parameters depending on where they come from the query parameter hash contains parameters that were sent as part of the query string while the request parameter hash contains parameters sent as part of the post post body. The path parameters hash contain parametes that were recognized by the routing as being part of the leading to this particular controller and action.
+
+The response object
+
+the response object is not usually directly, but is built up during the execution of the actoin and rendering of the data that is being sent back to the user but sometimes like in an after filter - it can be used to acess the response directly some of these accessor methods also have setters allowing you to change their values to get a full list of the available methods refer to the Rails API documentation and Rack
+Documentation.
+
+Setting custom Headers
+If you want to setsustom header for the response then response .header is the place to do it. the header attribute is a hash which maps header names to their value and rails will set some of them automatically if you want to add or change a header just assign it to respose.header s this way:
+
+response.header["content-Type"] = "application/pdf"
+
+in the above case it would make more sence to use the content_type setter directly.
+
+HTTP authentications
+
+rails comes with three built-in HTTP authentication mechanisms:
+
+BASIC authentication
+DIGEST authentication
+TOKEN authentication
+HTTP basic authentication
+HTTP basic authentication is an authentication scheme that is supported by the majority of browsers and other HTTP clients As an example consider an administration section which will only be available by entering a username and a password into a browser's HTTP basic dialogue window. Using the built-in authentication is quite easy and only require you to use one method.
+http basci authentication with
+
+
+class AdminsController < ApplicationController 
+http_basic-authentication_with name: "humbaba",
+password: "wert543"
+end
+
+With this in place, you can create namespaced controllers that inherit from AdminsController. The filter will thus be run for all actions in those controllers, protecting them with HTTP basic authentication.
+
+HTTP Digest Authentication
+
+HTTP digest authentication is supperior to the basic authentication as it does not require the client to send an unencrypted password over the network (through HTTP basic authentication is safe over HTTPS). Using digest authentication with rails is quite easy and only require using one method.
+authenticate or request with http digest.
+
+class AdminsController < ApplicationController
+USER = { "Lifo" => "world" }
+
+before_action :authenticcate
+
+private
+def authenticate
+authenticate_or_or_request_with_http_digest do |username|
+USER[username]
+end
+end
+end
+
+AS seen in the example above, the authenticate_or_request_with_http_digest blockj takes only one argument - the username. And the block returns the password. Returning false or nil from authenticate_or_request_with_http_digest will cause authentication failure
+
+HTTP token Authentication
+
+HTTP token authenticatoin is a scheme to enable the usage of Bearer tokens in the HTTP Authorization header There are many token formats available and describing them is outside the scope of this document.
+
+As an example, suppose you wanr to use an authentication token tat has been issued in advance to perform authentication and access. Implementing token authentication with rails is quite easy and only require using one method. authenticate or request with http token.
+
+class PostsController <ApplicationController
+ToKEN = "secret"
+
+before_action : authenticate 
+private
+def authenticate
+authenticate_or_request_with_http_token do |token, options |
+
+ActiveSupport:: SecurityUtils.secure_compare{token, TOKEN)
+end
+end
+end
+
+As seen in the example above the authenticate_or_or request_with_http_token block takes two arguments- the token and a hash contaning the options that were parsed from the HTTP Authorization header The block should return true if the authentication is successful Returning false or nil on it will cause an authentication failure
+
+Streaming and file Downloads
+Sometimes you may want to send a file to the user instead of rendering an HTMML page. All controllers in rails have the send data and the send file methods which will both stream data to the client send_file is a convinient method that lets you provide the name of a file on the disk, and it will stream the contents of that file for you 
+
+To stream data to the client use send_data:
+
+require "prawn"
+class ClientsController < ApplicationController
+#Generates a PDF document with information on the client and 
+#returns it. The user will get the PDF as a file download
+def download_pdf
+client = Client.find(params[:id])
+send_data generate_pdf(client),
+filename: "#{client.name}.pdf",
+type: "application/pdf"
+end
+
+private def generate_pdf(client)
+Prawn::Document.new do
+text cient.name, align: :center
+text "Adress: #{client.address}"
+txt "Email: #{client.email}"
+end.render
+end
+end
+
+The download_pdf action in the example above will call a private method which actually generates the PDF document and returns it as a string. This will then be streamed to the client as a file download, and a filename
+
+
